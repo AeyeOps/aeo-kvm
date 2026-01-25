@@ -1,0 +1,47 @@
+# Build outputs
+dist/
+
+# Libraries (built/downloaded by setup.sh)
+libs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+uv.lock
+.ruff_cache/
+
+# Bun/Node
+node_modules/
+
+# Logs and temp files
+*.log
+/tmp/
+*.tmp
+
+# Database/cache files
+*.sqlite
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# TV keys (contains pairing secrets)
+tv-keys.json
+
+# Environment secrets
+.env
+.env.*
+
+# Legacy files (keep out of public repo)
+archive/
+
+# AI demo generation output
+tools/generate-demo/output/

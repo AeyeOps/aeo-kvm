@@ -1,0 +1,30 @@
+- 1.1.11+dfsg-2
+- _NAME: Signature Slim K950
+  _absent: [hi-res-scroll, lowres-scroll-mode, hires-smooth-invert, hires-smooth-resolution, hires-scroll-mode, scroll-ratchet, smart-shift, thumb-scroll-invert,
+    thumb-scroll-mode, onboard_profiles, report_rate, report_rate_extended, pointer_speed, dpi, speed-change, backlight, backlight_level, backlight_duration_hands_out,
+    backlight_duration_hands_in, backlight_duration_powered, backlight-timed, led_control, led_zone_, reprogrammable-keys, persistent-remappable-keys, crown-smooth,
+    divert-crown, divert-gkeys, m-key-leds, mr-key-led, gesture2-gestures, gesture2-divert, gesture2-params, sidetone, equalizer, adc_power_management]
+  _battery: 0x1004
+  _modelId: B38600000000
+  _sensitive: {divert-keys: true, fn-swap: true}
+  _unitId: 501C63F0
+  change-host: null
+  disable-keyboard-keys: {0x1: false, 0x2: false, 0x4: false, 0x8: false, 0x10: false}
+  divert-keys: {0xa: 0x0, 0x6f: 0x0, 0xc7: 0x0, 0xc8: 0x0, 0xd4: 0x0, 0xe0: 0x0, 0xe4: 0x0, 0xe5: 0x0, 0xe6: 0x0, 0xe7: 0x0, 0xe8: 0x0, 0xe9: 0x0, 0x103: 0x0,
+    0x108: 0x0, 0x109: 0x0, 0x10a: 0x0, 0x118: 0x0, 0x119: 0x0, 0x11a: 0x0, 0x11b: 0x0, 0x11c: 0x0, 0x121: 0x0}
+  fn-swap: false
+  multiplatform: 0x0
+- _NAME: Signature Plus M750 L
+  _absent: [hi-res-scroll, hires-smooth-invert, hires-smooth-resolution, hires-scroll-mode, scroll-ratchet, smart-shift, thumb-scroll-invert, thumb-scroll-mode,
+    onboard_profiles, report_rate, report_rate_extended, pointer_speed, speed-change, backlight, backlight_level, backlight_duration_hands_out, backlight_duration_hands_in,
+    backlight_duration_powered, backlight-timed, led_control, led_zone_, fn-swap, persistent-remappable-keys, disable-keyboard-keys, crown-smooth, divert-crown,
+    divert-gkeys, m-key-leds, mr-key-led, multiplatform, gesture2-gestures, gesture2-divert, gesture2-params, sidetone, equalizer, adc_power_management]
+  _battery: 0x1004
+  _modelId: B02C00000000
+  _sensitive: {divert-keys: true, hires-scroll-mode: ignore, hires-smooth-invert: ignore, hires-smooth-resolution: ignore}
+  _unitId: 864366AE
+  change-host: null
+  divert-keys: {0x52: 0x0, 0x53: 0x1, 0x56: 0x0, 0xfd: 0x0}
+  dpi: 0x44c
+  lowres-scroll-mode: false
+  reprogrammable-keys: {0x52: 0x52, 0x53: 0x53, 0x56: 0x56, 0xfd: 0xfd}

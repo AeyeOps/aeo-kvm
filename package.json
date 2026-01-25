@@ -1,0 +1,14 @@
+{
+  "name": "aeo-kvm",
+  "version": "0.2.0",
+  "description": "Switch keyboard, video, and mouse between hosts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/main-ffi.ts",
+    "build": "bun build --compile src/main-ffi.ts --outfile dist/aeo-kvm",
+    "build:linux": "bun build --compile --target=bun-linux-x64 src/main-ffi.ts --outfile dist/aeo-kvm-linux",
+    "build:windows": "bun build --compile --target=bun-windows-x64 src/main-ffi.ts --outfile dist/aeo-kvm.exe",
+    "build:all": "bun run build:linux && bun run build:windows"
+  },
+  "dependencies": {}
+}
