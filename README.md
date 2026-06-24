@@ -100,6 +100,21 @@ a Mac also produces the Linux package — the `libhidapi-hidraw.so.0` is compile
 inside a throwaway Ubuntu container VM, then the binary cross-compiles via Bun. No
 Linux host required.
 
+**How each target is built (one script, two hosts):** there is a single build
+script — `build/setup.sh` — shared by both build *hosts* (macOS and Linux); it
+gates on `uname -s`. Windows is a build *target*, not a host: its
+`aeo-kvm-installer.exe` is cross-compiled by that same script
+(`bun build --target=bun-windows-x64`), and the Windows install logic lives in
+`src/windows-installer.ts`, compiled *into* the exe as a runtime self-extractor
+(it embeds the DLL and installs to `%LOCALAPPDATA%`). Windows never runs a build
+itself — there is no separate Windows build script.
+
+| Build host | Produces                | Linux `.so` source          |
+|------------|-------------------------|-----------------------------|
+| macOS      | macOS + Windows + Linux | Apple `container` Ubuntu VM |
+| Linux      | Linux + Windows         | cmake on the host           |
+| Windows    | *(not a build host)*    | —                           |
+
 Output:
 ```
 dist/
@@ -110,8 +125,7 @@ dist/
 ├── macos-arm64/
 │   ├── aeo-kvm
 │   ├── libhidapi.dylib
-│   ├── install.sh
-│   └── karabiner-aeo-kvm.json
+│   └── install.sh
 └── windows-x64/
     └── aeo-kvm-installer.exe   # Self-extracting, DLL embedded
 ```
