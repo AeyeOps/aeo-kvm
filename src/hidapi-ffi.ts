@@ -26,7 +26,13 @@ log("=== aeo-kvm started ===");
 
 // Find the library path - check multiple locations
 function findLibPath(): string {
-  const libName = suffix === "dll" ? "hidapi.dll" : "libhidapi-hidraw.so.0";
+  // bun:ffi `suffix` is dll (Windows), dylib (macOS), so (Linux)
+  const libName =
+    suffix === "dll"
+      ? "hidapi.dll"
+      : suffix === "dylib"
+        ? "libhidapi.dylib"
+        : "libhidapi-hidraw.so.0";
 
   // Possible locations to check
   const candidates = [
@@ -36,6 +42,8 @@ function findLibPath(): string {
     // Development paths
     join(dirname(import.meta.dir), "libs", libName),
     join(import.meta.dir, "..", "libs", libName),
+    // System paths (macOS Homebrew)
+    `/opt/homebrew/lib/${libName}`,
     // System paths (Linux)
     `/usr/lib/x86_64-linux-gnu/${libName}`,
     `/usr/local/lib/${libName}`,

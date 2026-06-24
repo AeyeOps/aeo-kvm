@@ -1,28 +1,28 @@
 #!/bin/bash
 # AEO-KVM Build Setup
-# Builds self-contained executables for Linux and Windows
+# Builds self-contained executables for Linux, Windows, and macOS.
 #
-# Usage: ./build/setup.sh [--linux-only] [--windows-only]
+# Usage: ./build/setup.sh [--linux-only] [--windows-only] [--mac-only]
 #
-# This script will:
-# 1. Install build dependencies (requires sudo, if needed)
-# 2. Build hidapi from source
-# 3. Copy libraries to libs/
-# 4. Build executables with bun into platform-specific directories
+# Builds are environment-conditional: each platform is built only when its
+# native hidapi library can be produced on (or already exists for) this host.
+#   - Linux   .so    : built from source via cmake   -> Linux host only
+#   - Windows  .dll   : downloaded from hidapi release -> any host with curl
+#   - macOS   .dylib : installed via Homebrew         -> macOS host only
+# A platform whose native lib cannot be obtained on this host is skipped and
+# logged, unless that lib already exists in libs/.
 
 set -e
 
-# Parse arguments
-BUILD_LINUX=1
-BUILD_WINDOWS=1
+HOST_OS="$(uname -s)"  # Linux | Darwin
+
+# Parse arguments (an explicit --X-only overrides host auto-detection)
+ONLY=""
 for arg in "$@"; do
     case $arg in
-        --linux-only)
-            BUILD_WINDOWS=0
-            ;;
-        --windows-only)
-            BUILD_LINUX=0
-            ;;
+        --linux-only)   ONLY="linux" ;;
+        --windows-only) ONLY="windows" ;;
+        --mac-only)     ONLY="mac" ;;
     esac
 done
 
@@ -31,7 +31,13 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LIBS_DIR="$PROJECT_DIR/libs"
 BUILD_TMP="/tmp/aeo-kvm-build"
 
+# Portable sha256 (sha256sum on Linux, shasum on macOS)
+sha256() {
+    if command -v sha256sum &>/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi
+}
+
 echo "=== AEO-KVM Build Setup ==="
+echo "  Host: $HOST_OS"
 echo ""
 
 # Check for bun
@@ -41,97 +47,125 @@ if ! command -v bun &> /dev/null; then
     exit 1
 fi
 
-# Step 1: Check/install build dependencies
-echo "[1/4] Checking build dependencies..."
+# --- Decide what to build -------------------------------------------------
+# A platform is buildable if its native lib can be produced on this host,
+# or already exists in libs/.
+want() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 
-NEED_INSTALL=0
-check_pkg() {
-    if ! dpkg -s "$1" &>/dev/null; then
-        echo "  Missing: $1"
-        NEED_INSTALL=1
-    fi
-}
+BUILD_LINUX=0; BUILD_WINDOWS=0; BUILD_MAC=0
 
-if command -v dpkg &> /dev/null; then
-    check_pkg libudev-dev
-    check_pkg libusb-1.0-0-dev
-    check_pkg cmake
-    check_pkg build-essential
-    check_pkg git
-    check_pkg unzip
-
-    if [ $NEED_INSTALL -eq 1 ]; then
-        echo ""
-        echo "Installing missing packages (requires sudo)..."
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq libudev-dev libusb-1.0-0-dev cmake build-essential git unzip curl
+if want linux; then
+    if [ "$HOST_OS" = "Linux" ] || [ -f "$LIBS_DIR/libhidapi-hidraw.so.0" ]; then
+        BUILD_LINUX=1
     else
-        echo "  All dependencies installed"
+        echo "  Skip Linux: needs a Linux host to build libhidapi-hidraw.so.0 (none in libs/)"
     fi
-elif command -v dnf &> /dev/null; then
-    sudo dnf install -y systemd-devel libusb1-devel cmake gcc gcc-c++ git unzip curl
-else
-    echo "Warning: Unknown package manager. Please ensure libudev-dev, libusb-1.0-0-dev, cmake, and build tools are installed."
 fi
 
-# Step 2: Download/build hidapi
-echo "[2/4] Building hidapi..."
-mkdir -p "$BUILD_TMP"
-cd "$BUILD_TMP"
-
-if [ ! -d "hidapi" ]; then
-    git clone --depth 1 https://github.com/libusb/hidapi.git
+if want windows; then
+    # The .dll is downloadable on any host with curl, and is embedded into
+    # every target (even Linux/macOS) via the windows-installer import.
+    if command -v curl &>/dev/null || [ -f "$LIBS_DIR/hidapi.dll" ]; then
+        BUILD_WINDOWS=1
+    else
+        echo "  Skip Windows: curl unavailable and no hidapi.dll in libs/"
+    fi
 fi
 
-cd hidapi
-mkdir -p build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+if want mac; then
+    if [ "$HOST_OS" = "Darwin" ] || [ -f "$LIBS_DIR/libhidapi.dylib" ]; then
+        BUILD_MAC=1
+    else
+        echo "  Skip macOS: needs a macOS host to install libhidapi.dylib (none in libs/)"
+    fi
+fi
 
-# Step 3: Copy libraries
-echo "[3/4] Copying libraries..."
+if [ "$BUILD_LINUX$BUILD_WINDOWS$BUILD_MAC" = "000" ]; then
+    echo "Error: nothing to build on this host"
+    exit 1
+fi
+echo "  Building: linux=$BUILD_LINUX windows=$BUILD_WINDOWS mac=$BUILD_MAC"
+echo ""
+
 mkdir -p "$LIBS_DIR"
 
-# Linux library
-cp "$BUILD_TMP/hidapi/build/src/linux/libhidapi-hidraw.so.0" "$LIBS_DIR/"
-echo "  Copied libhidapi-hidraw.so.0"
+# --- Native libraries -----------------------------------------------------
 
-# Windows library - download if not present
+# Linux .so (build from source; Linux host only)
+if [ "$BUILD_LINUX" = "1" ] && [ ! -f "$LIBS_DIR/libhidapi-hidraw.so.0" ]; then
+    echo "[deps] Checking Linux build dependencies..."
+    NEED_INSTALL=0
+    check_pkg() { dpkg -s "$1" &>/dev/null || { echo "  Missing: $1"; NEED_INSTALL=1; }; }
+    if command -v dpkg &>/dev/null; then
+        for p in libudev-dev libusb-1.0-0-dev cmake build-essential git unzip; do check_pkg "$p"; done
+        if [ $NEED_INSTALL -eq 1 ]; then
+            echo "  Installing missing packages (requires sudo)..."
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libudev-dev libusb-1.0-0-dev cmake build-essential git unzip curl
+        else
+            echo "  All dependencies installed"
+        fi
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y systemd-devel libusb1-devel cmake gcc gcc-c++ git unzip curl
+    else
+        echo "  Warning: unknown package manager; ensure cmake + build tools are present"
+    fi
+
+    echo "[lib] Building Linux hidapi from source..."
+    mkdir -p "$BUILD_TMP"; cd "$BUILD_TMP"
+    [ -d hidapi ] || git clone --depth 1 https://github.com/libusb/hidapi.git
+    cd hidapi; mkdir -p build; cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release
+    make -j"$(nproc)"
+    cp "$BUILD_TMP/hidapi/build/src/linux/libhidapi-hidraw.so.0" "$LIBS_DIR/"
+    echo "  Linux libhidapi-hidraw.so.0 ready"
+    cd "$PROJECT_DIR"
+fi
+
+# macOS .dylib (Homebrew; macOS host only)
+if [ "$BUILD_MAC" = "1" ] && [ ! -f "$LIBS_DIR/libhidapi.dylib" ]; then
+    echo "[lib] Installing macOS hidapi via Homebrew..."
+    if ! command -v brew &>/dev/null; then
+        echo "Error: Homebrew required to obtain libhidapi.dylib (https://brew.sh)"
+        exit 1
+    fi
+    brew list hidapi &>/dev/null || brew install hidapi
+    cp "$(brew --prefix hidapi)/lib/libhidapi.dylib" "$LIBS_DIR/"
+    echo "  macOS libhidapi.dylib ready"
+fi
+
+# Windows .dll (download; any host). Always required: it is embedded into
+# every build via `import ../libs/hidapi.dll`, including non-Windows targets.
 if [ ! -f "$LIBS_DIR/hidapi.dll" ]; then
-    echo "  Downloading Windows hidapi..."
+    echo "[lib] Downloading Windows hidapi.dll..."
+    if ! command -v curl &>/dev/null; then
+        echo "Error: curl required to download hidapi.dll"
+        exit 1
+    fi
     cd "$LIBS_DIR"
     curl -sL https://github.com/libusb/hidapi/releases/download/hidapi-0.14.0/hidapi-win.zip -o hidapi-win.zip
     unzip -o -q hidapi-win.zip
     cp x64/hidapi.dll .
     rm -rf hidapi-win.zip include x64 x86
+    cd "$PROJECT_DIR"
 fi
 echo "  Windows hidapi.dll ready"
 
-# Step 4: Build executables
-echo "[4/4] Building executables..."
+# --- Executables ----------------------------------------------------------
 cd "$PROJECT_DIR"
-
-# Read version from pyproject.toml (source of truth)
 VERSION=$(grep '^version' "$PROJECT_DIR/pyproject.toml" | sed 's/.*= "\(.*\)"/\1/')
-echo "  Version: $VERSION"
+echo ""
+echo "[build] Version: $VERSION"
 
-# Detect architecture
-ARCH=$(uname -m)
-if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-    LINUX_TARGET="bun-linux-arm64"
-    LINUX_ARCH="arm64"
-else
-    LINUX_TARGET="bun-linux-x64"
-    LINUX_ARCH="x64"
-fi
-
-# Create platform-specific directories
-LINUX_DIST="$PROJECT_DIR/dist/linux-$LINUX_ARCH"
-WIN_DIST="$PROJECT_DIR/dist/windows-x64"
-
-# Build Linux
+# Linux
 if [ "$BUILD_LINUX" = "1" ]; then
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        LINUX_TARGET="bun-linux-arm64"; LINUX_ARCH="arm64"
+    else
+        LINUX_TARGET="bun-linux-x64"; LINUX_ARCH="x64"
+    fi
+    LINUX_DIST="$PROJECT_DIR/dist/linux-$LINUX_ARCH"
     echo "  Building Linux executable ($LINUX_TARGET)..."
     mkdir -p "$LINUX_DIST"
     bun build --compile --target=$LINUX_TARGET src/main-ffi.ts --outfile "$LINUX_DIST/aeo-kvm"
@@ -139,45 +173,62 @@ if [ "$BUILD_LINUX" = "1" ]; then
     cp "$PROJECT_DIR/scripts/install-linux.sh" "$LINUX_DIST/install.sh"
     cp "$PROJECT_DIR/scripts/uninstall-linux.sh" "$LINUX_DIST/uninstall.sh"
     chmod +x "$LINUX_DIST"/*.sh "$LINUX_DIST/aeo-kvm"
-    # Generate checksums
-    (cd "$LINUX_DIST" && sha256sum aeo-kvm libhidapi-hidraw.so.0 > SHA256SUMS)
+    (cd "$LINUX_DIST" && sha256 aeo-kvm libhidapi-hidraw.so.0 > SHA256SUMS)
     echo "  Linux package: dist/linux-$LINUX_ARCH/"
 fi
 
-# Build Windows (single self-installing exe with embedded DLL)
+# macOS
+if [ "$BUILD_MAC" = "1" ]; then
+    MAC_ARCH=$(uname -m)  # arm64 | x86_64
+    if [ "$HOST_OS" = "Darwin" ] && [ "$MAC_ARCH" = "x86_64" ]; then
+        MAC_TARGET="bun-darwin-x64"; MAC_ARCHN="x64"
+    else
+        MAC_TARGET="bun-darwin-arm64"; MAC_ARCHN="arm64"
+    fi
+    MAC_DIST="$PROJECT_DIR/dist/macos-$MAC_ARCHN"
+    echo "  Building macOS executable ($MAC_TARGET)..."
+    mkdir -p "$MAC_DIST"
+    bun build --compile --target=$MAC_TARGET src/main-ffi.ts --outfile "$MAC_DIST/aeo-kvm"
+    cp "$LIBS_DIR/libhidapi.dylib" "$MAC_DIST/"
+    cp "$PROJECT_DIR/scripts/install-macos.sh" "$MAC_DIST/install.sh"
+    chmod +x "$MAC_DIST"/*.sh "$MAC_DIST/aeo-kvm"
+    (cd "$MAC_DIST" && sha256 aeo-kvm libhidapi.dylib > SHA256SUMS)
+    echo "  macOS package: dist/macos-$MAC_ARCHN/"
+fi
+
+# Windows (single self-installing exe with embedded DLL)
 if [ "$BUILD_WINDOWS" = "1" ]; then
+    WIN_DIST="$PROJECT_DIR/dist/windows-x64"
     echo "  Building Windows executable (x64, self-installing)..."
     mkdir -p "$WIN_DIST"
     bun build --compile --target=bun-windows-x64 src/main-ffi.ts --outfile "$WIN_DIST/aeo-kvm-installer.exe"
-    # DLL is embedded in exe - no separate files needed!
-    # Generate checksum
-    (cd "$WIN_DIST" && sha256sum aeo-kvm-installer.exe > SHA256SUMS)
+    (cd "$WIN_DIST" && sha256 aeo-kvm-installer.exe > SHA256SUMS)
     echo "  Windows package: dist/windows-x64/ (single file!)"
 fi
 
 echo ""
 echo "=== Build Complete (v$VERSION) ==="
-echo ""
-echo "Platform packages:"
-[ "$BUILD_LINUX" = "1" ] && ls -lh "$LINUX_DIST/"
-[ "$BUILD_WINDOWS" = "1" ] && ls -lh "$WIN_DIST/"
 
-# Auto-install to deployment locations
+# --- Deploy to this host's location ---------------------------------------
 echo ""
-echo "[5/5] Installing to deployment locations..."
+echo "[install] Local deployment..."
 
-if [ "$BUILD_LINUX" = "1" ]; then
+if [ "$BUILD_LINUX" = "1" ] && [ "$HOST_OS" = "Linux" ]; then
     mkdir -p /opt/aeo-kvm
-    cp "$LINUX_DIST/aeo-kvm" /opt/aeo-kvm/
-    cp "$LINUX_DIST/libhidapi-hidraw.so.0" /opt/aeo-kvm/
+    cp "$PROJECT_DIR/dist/linux-$LINUX_ARCH/aeo-kvm" /opt/aeo-kvm/
+    cp "$PROJECT_DIR/dist/linux-$LINUX_ARCH/libhidapi-hidraw.so.0" /opt/aeo-kvm/
     echo "  Linux: /opt/aeo-kvm/aeo-kvm"
+fi
+
+if [ "$BUILD_MAC" = "1" ] && [ "$HOST_OS" = "Darwin" ]; then
+    echo "  macOS package built. Install + wire the Karabiner trigger with:"
+    echo "    bash dist/macos-$MAC_ARCHN/install.sh   (no sudo; or run 'make macos' for the full lifecycle)"
 fi
 
 if [ "$BUILD_WINDOWS" = "1" ]; then
     echo "  Deploying to Windows via SSH..."
-    # Get Windows user's download path dynamically
     WIN_DOWNLOADS=$(ssh windows 'echo %USERPROFILE%\Downloads' 2>/dev/null | tr -d '\r')
-    if [ -n "$WIN_DOWNLOADS" ] && scp "$WIN_DIST/aeo-kvm-installer.exe" "windows:$WIN_DOWNLOADS\\" 2>/dev/null; then
+    if [ -n "$WIN_DOWNLOADS" ] && scp "$PROJECT_DIR/dist/windows-x64/aeo-kvm-installer.exe" "windows:$WIN_DOWNLOADS\\" 2>/dev/null; then
         echo "  Windows: copied to $WIN_DOWNLOADS"
         echo "  Running installer on Windows..."
         if ssh windows "$WIN_DOWNLOADS\\aeo-kvm-installer.exe" 2>/dev/null; then

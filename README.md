@@ -44,13 +44,21 @@ Result: press one button, everything switches together.
 
 **Build:**
 - [Bun](https://bun.sh) runtime
-- Linux build environment (cross-compiles Windows)
-- First build: sudo access for dependencies (cmake, libudev-dev, etc.)
+- Linux build environment (cross-compiles Windows); macOS builds natively
+- First build: sudo access for Linux deps (cmake, libudev-dev, etc.); macOS pulls
+  `hidapi` via Homebrew (no sudo)
 
 **Runtime:**
 - Linux: [Solaar](https://pwr-solaar.github.io/Solaar/) for button diversion
 - Windows: Logi Options+ for button binding
+- **macOS: [Karabiner-Elements](https://karabiner-elements.pqrs.org/)** for
+  button binding (`brew install --cask karabiner-elements`) — required
+  dependency; it needs an Input Monitoring grant on first run
 - LG WebOS TV with "IP Control" enabled
+
+> **TV pairing (all platforms, first run):** the first switch auto-discovers the
+> TV over SSDP and the TV shows a pairing prompt — accept it once. The client key
+> is saved to `tv-keys.json`, so later switches are silent.
 
 ### Supported Devices
 
@@ -64,17 +72,23 @@ Result: press one button, everything switches together.
 
 ## Quick Start
 
-1. **Build** from source (see [Building](#building) below)
+1. **Build** from source (see [Building](#building) below); on macOS, `make macos` does steps 1–2 and 4
 2. **Run installer** for your platform (`install.sh` or `aeo-kvm-installer.exe`)
 3. **Accept TV pairing** prompt on first run
-4. **Configure trigger** button in Solaar (Linux) or Logi Options+ (Windows)
+4. **Configure trigger** button in Solaar (Linux), Logi Options+ (Windows), or Karabiner-Elements (macOS, auto-enabled)
 
 ## Building
 
 ```bash
-make build    # Build all platforms + auto-deploy
+make build    # Build every platform this host can + auto-deploy
 make clean    # Remove dist/
 ```
+
+The build is environment-conditional — each platform is built only when its
+native hidapi library can be produced on (or already exists for) the current
+host: Linux `.so` needs a Linux host, macOS `.dylib` needs a macOS host
+(Homebrew), Windows `.dll` downloads on any host. Restrict with
+`--linux-only` / `--windows-only` / `--mac-only`.
 
 Output:
 ```
@@ -83,6 +97,11 @@ dist/
 │   ├── aeo-kvm
 │   ├── libhidapi-hidraw.so.0
 │   └── install.sh
+├── macos-arm64/
+│   ├── aeo-kvm
+│   ├── libhidapi.dylib
+│   ├── install.sh
+│   └── karabiner-aeo-kvm.json
 └── windows-x64/
     └── aeo-kvm-installer.exe   # Self-extracting, DLL embedded
 ```
@@ -90,6 +109,7 @@ dist/
 Build auto-deploys:
 - Linux: `/opt/aeo-kvm/`
 - Windows: via SSH to `%LOCALAPPDATA%\aeo-kvm\`
+- macOS: prints the `install.sh` command (run it to deploy + wire Karabiner)
 
 ## Installation
 
@@ -119,6 +139,25 @@ The installer:
    - For Windows-to-MacBook, bind the adjacent button to `%LOCALAPPDATA%\aeo-kvm\switch-to-macbook.exe`
 
 **First run:** Your TV will display a pairing prompt - accept it. The client key is saved for future use.
+
+### macOS
+
+One command does the whole lifecycle (prerequisites → build → install → enable):
+
+```bash
+make macos
+```
+
+It installs `bun`, `hidapi`, and **Karabiner-Elements** (a required dependency),
+builds the native binary, installs to `~/.local/share/aeo-kvm/` (**no sudo**), and
+auto-enables the Karabiner rule mapping the M750 Back button → `switch-to-windows`
+and Forward button → `switch-to-linux`. It's idempotent and survives restart
+(Karabiner runs as a login agent).
+
+Two one-time approvals macOS requires: **Input Monitoring** for Karabiner-Elements
+(and for `~/.local/share/aeo-kvm/aeo-kvm` if a switch fires but the devices don't
+move), and the **TV pairing** prompt on the first button press. Full setup,
+permissions, and validation: [`docs/macos-trigger-setup.md`](docs/macos-trigger-setup.md).
 
 ## Usage
 

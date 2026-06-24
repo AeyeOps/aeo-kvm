@@ -58,15 +58,19 @@ main-ffi.ts          CLI entry, routes to switch commands
 - TV IP is dynamic (DHCP) - SSDP auto-discovers and updates config
 - Windows Hyper-V: UDP multicast requires explicit interface binding (socket.bind to local IP)
 - Solaar rules.yaml requires `Rule:` wrapper to combine condition+action (not flat list)
+- macOS exposes the `0xFF43` HID++ vendor collection on BOTH K950 (PID 0xb386) and M750 L (PID 0xb02c) over BLE (ioreg-confirmed) - the CHANGE_HOST interface aeo-kvm needs is present on Mac. K950 also exposes `0xFF0C`. (Actual CHANGE_HOST send on macOS still pending hardware test - gated on Input Monitoring permission.)
+- macOS reports M750 L buttons as standard Button-page usages 1-5 (L/R/middle/back=4/forward=5), so Karabiner can bind them. Proprietary controls that emit only via vendor pages are NOT Karabiner-bindable (same class Solaar/Options+ reach via HID++ divert); M750 has none beyond the 5 standard buttons.
 
 ## Key Paths
 - Build script: build/setup.sh
 - Source: src/{main-ffi,hid-ffi,hidapi-ffi,tv}.ts
-- Installer: scripts/install-linux.sh (Windows uses self-extracting exe)
-- Libs (built): libs/{hidapi.dll,libhidapi-hidraw.so.0}
-- Output: dist/
+- Installer: scripts/install-linux.sh, scripts/install-macos.sh (Windows uses self-extracting exe)
+- macOS lifecycle (one command): scripts/macos-lifecycle.sh (`make macos`) - prereqs+build+install+enable
+- macOS install dir: ~/.local/share/aeo-kvm/ (no sudo); trigger via Karabiner rule in ~/.config/karabiner/karabiner.json
+- Libs (built): libs/{hidapi.dll,libhidapi-hidraw.so.0,libhidapi.dylib}
+- Output: dist/{linux-*,windows-x64,macos-*}/
 - Solaar config: ~/.config/solaar/rules.yaml
-- TV config: tv-keys.json (Linux: ~/.config/aeo-kvm/, Windows: same dir as exe)
+- TV config: tv-keys.json (Linux/macOS: ~/.config/aeo-kvm/, Windows: same dir as exe)
 - HDMI inputs: hardcoded in src/main-ffi.ts
 
 ## Known Limitations

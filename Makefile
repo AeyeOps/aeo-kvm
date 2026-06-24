@@ -1,7 +1,11 @@
-.PHONY: build clean dev install
+.PHONY: build clean dev install macos
 
 build:
 	./build/setup.sh
+
+# Full macOS lifecycle: prerequisites -> build -> install (+enable Karabiner rule)
+macos:
+	bash scripts/macos-lifecycle.sh
 
 install: build
 	@echo "[Install] Copying Linux to /opt/aeo-kvm/..."

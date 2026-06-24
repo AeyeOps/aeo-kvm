@@ -5,9 +5,30 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### Added
+- macOS-side return switching via Karabiner-Elements: M750 Back button →
+  `switch-to-windows`, Forward button → `switch-to-linux`. See
+  `docs/macos-trigger-setup.md`. (Switch send pending hardware validation.)
+- `make macos` (`scripts/macos-lifecycle.sh`): one-command lifecycle that
+  installs prerequisites (bun, hidapi, Karabiner-Elements), builds, installs to
+  `~/.local/share/aeo-kvm/` (no sudo), and auto-enables the Karabiner rule by
+  merging it into the active profile. Idempotent; survives restart (Karabiner is
+  a login agent).
+- `build/setup.sh` now builds a macOS (`bun-darwin-arm64`) target and obtains
+  `libhidapi.dylib` via Homebrew.
+- ioreg-confirmed that macOS exposes the `0xFF43` HID++ interface on both the
+  K950 and M750, and the M750's 5 buttons as standard usages — so the switch can
+  reach both devices and Karabiner can bind the buttons.
 - Windows-side `switch-to-macbook` target for Logitech host slot 3 and LG TV `HDMI_4`.
 - Windows installer creates `switch-to-macbook.exe` for Logi Options+ Smart Actions.
 - Linux installer maps Forward Button to `switch-to-macbook` while keeping Back Button mapped to Windows.
+
+### Changed
+- `build/setup.sh` is now environment-conditional: it builds only the platforms
+  whose native hidapi library can be produced on (or already exists for) the
+  current host, and skips the rest with a log line. Adds `--mac-only`; portable
+  sha256 (`shasum` on macOS).
+- `findLibPath` (hidapi-ffi) resolves `libhidapi.dylib` and the Homebrew path on
+  macOS.
 
 ## [0.2.0] - 2026-01-18
 
