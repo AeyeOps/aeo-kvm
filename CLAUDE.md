@@ -60,6 +60,7 @@ main-ffi.ts          CLI entry, routes to switch commands
 - Solaar rules.yaml requires `Rule:` wrapper to combine condition+action (not flat list)
 - macOS exposes the `0xFF43` HID++ vendor collection on BOTH K950 (PID 0xb386) and M750 L (PID 0xb02c) over BLE (ioreg-confirmed) - the CHANGE_HOST interface aeo-kvm needs is present on Mac. K950 also exposes `0xFF0C`. (Actual CHANGE_HOST send on macOS still pending hardware test - gated on Input Monitoring permission.)
 - macOS reports M750 L buttons as standard Button-page usages 1-5 (L/R/middle/back=4/forward=5), so Karabiner can bind them. Proprietary controls that emit only via vendor pages are NOT Karabiner-bindable (same class Solaar/Options+ reach via HID++ divert); M750 has none beyond the 5 standard buttons.
+- Apple `container` (Homebrew formula, 1.0.0, macOS 26+/Apple Silicon, no sudo) builds the Linux arm64 `libhidapi-hidraw.so.0` inside a throwaway Ubuntu VM, letting a Mac build all three packages (tested 2026-06-24). Needs `pkg-config` in the apt list (cmake libusb-backend probe). Kernel: `container system kernel set --recommended`; volume mount `-v host:guest` writes back to libs/. setup.sh auto-uses it when on Darwin + `container` present.
 
 ## Key Paths
 - Build script: build/setup.sh

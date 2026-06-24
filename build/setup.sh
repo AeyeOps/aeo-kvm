@@ -6,7 +6,8 @@
 #
 # Builds are environment-conditional: each platform is built only when its
 # native hidapi library can be produced on (or already exists for) this host.
-#   - Linux   .so    : built from source via cmake   -> Linux host only
+#   - Linux   .so    : cmake on a Linux host, OR inside an Apple `container`
+#                      Linux VM when on macOS (needs the `container` CLI)
 #   - Windows  .dll   : downloaded from hidapi release -> any host with curl
 #   - macOS   .dylib : installed via Homebrew         -> macOS host only
 # A platform whose native lib cannot be obtained on this host is skipped and
@@ -36,6 +37,28 @@ sha256() {
     if command -v sha256sum &>/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi
 }
 
+# macOS-only: build libhidapi-hidraw.so.0 inside an Apple `container` Linux VM.
+# Each `container run` is its own lightweight Linux VM (Virtualization.framework),
+# so this produces a genuine Linux arm64 .so without a separate Linux host.
+build_linux_lib_in_container() {
+    echo "[lib] Building Linux libhidapi-hidraw.so.0 in an Apple 'container' VM..."
+    container system start &>/dev/null || true
+    container run --rm -v "$LIBS_DIR:/out" ubuntu:24.04 bash -c '
+        set -e
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq pkg-config libudev-dev libusb-1.0-0-dev cmake build-essential git >/dev/null
+        git clone --depth 1 https://github.com/libusb/hidapi.git /tmp/hidapi >/dev/null 2>&1
+        cd /tmp/hidapi && mkdir -p build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release >/dev/null
+        make -j"$(nproc)" >/dev/null
+        cp src/linux/libhidapi-hidraw.so.0 /out/
+    '
+    [ -f "$LIBS_DIR/libhidapi-hidraw.so.0" ] \
+        || { echo "Error: container build did not produce libhidapi-hidraw.so.0"; exit 1; }
+    echo "  Linux libhidapi-hidraw.so.0 ready (built in Apple container VM)"
+}
+
 echo "=== AEO-KVM Build Setup ==="
 echo "  Host: $HOST_OS"
 echo ""
@@ -52,13 +75,17 @@ fi
 # or already exists in libs/.
 want() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 
-BUILD_LINUX=0; BUILD_WINDOWS=0; BUILD_MAC=0
+BUILD_LINUX=0; BUILD_WINDOWS=0; BUILD_MAC=0; LINUX_LIB_VIA_CONTAINER=0
 
 if want linux; then
     if [ "$HOST_OS" = "Linux" ] || [ -f "$LIBS_DIR/libhidapi-hidraw.so.0" ]; then
         BUILD_LINUX=1
+    elif [ "$HOST_OS" = "Darwin" ] && command -v container &>/dev/null; then
+        # macOS: build the Linux .so inside an Apple `container` Linux VM
+        BUILD_LINUX=1; LINUX_LIB_VIA_CONTAINER=1
     else
-        echo "  Skip Linux: needs a Linux host to build libhidapi-hidraw.so.0 (none in libs/)"
+        echo "  Skip Linux: needs a Linux host, a prebuilt libs/libhidapi-hidraw.so.0,"
+        echo "              or the Apple 'container' CLI on macOS (brew install container)"
     fi
 fi
 
@@ -90,6 +117,11 @@ echo ""
 mkdir -p "$LIBS_DIR"
 
 # --- Native libraries -----------------------------------------------------
+
+# Linux .so: cmake on a Linux host, or inside an Apple `container` VM on macOS
+if [ "$BUILD_LINUX" = "1" ] && [ ! -f "$LIBS_DIR/libhidapi-hidraw.so.0" ] && [ "$LINUX_LIB_VIA_CONTAINER" = "1" ]; then
+    build_linux_lib_in_container
+fi
 
 # Linux .so (build from source; Linux host only)
 if [ "$BUILD_LINUX" = "1" ] && [ ! -f "$LIBS_DIR/libhidapi-hidraw.so.0" ]; then

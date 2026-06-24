@@ -27,6 +27,10 @@ All notable changes to this project will be documented in this file.
   whose native hidapi library can be produced on (or already exists for) the
   current host, and skips the rest with a log line. Adds `--mac-only`; portable
   sha256 (`shasum` on macOS).
+- On macOS, `build/setup.sh` can now build the **Linux** target too: when Apple's
+  `container` CLI is present it compiles `libhidapi-hidraw.so.0` inside a
+  throwaway Ubuntu container VM, so a Mac can produce all three packages. Falls
+  back to the skip message if `container` isn't installed.
 - `findLibPath` (hidapi-ffi) resolves `libhidapi.dylib` and the Homebrew path on
   macOS.
 

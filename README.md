@@ -44,9 +44,13 @@ Result: press one button, everything switches together.
 
 **Build:**
 - [Bun](https://bun.sh) runtime
-- Linux build environment (cross-compiles Windows); macOS builds natively
-- First build: sudo access for Linux deps (cmake, libudev-dev, etc.); macOS pulls
-  `hidapi` via Homebrew (no sudo)
+- Linux host builds Linux + Windows; macOS builds **all three** —
+  Mac natively, Windows via download, and Linux inside an Apple
+  [`container`](https://github.com/apple/container) VM (`brew install container`,
+  optional; only needed to build the Linux target from a Mac)
+- First build: sudo access for Linux deps (cmake, libudev-dev, etc.) on a Linux
+  host; on macOS, `hidapi` comes via Homebrew and the Linux lib builds in the
+  container (both no sudo)
 
 **Runtime:**
 - Linux: [Solaar](https://pwr-solaar.github.io/Solaar/) for button diversion
@@ -89,6 +93,12 @@ native hidapi library can be produced on (or already exists for) the current
 host: Linux `.so` needs a Linux host, macOS `.dylib` needs a macOS host
 (Homebrew), Windows `.dll` downloads on any host. Restrict with
 `--linux-only` / `--windows-only` / `--mac-only`.
+
+**Building all three from a Mac:** with Apple's [`container`](https://github.com/apple/container)
+installed (`brew install container`, macOS 26+ / Apple Silicon), `make build` on
+a Mac also produces the Linux package — the `libhidapi-hidraw.so.0` is compiled
+inside a throwaway Ubuntu container VM, then the binary cross-compiles via Bun. No
+Linux host required.
 
 Output:
 ```
