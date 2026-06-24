@@ -3,16 +3,17 @@
  * AEO-KVM: Switch keyboard, video, and mouse between hosts
  *
  * Usage:
- *   aeo-kvm                   Switch to Linux (default)
+ *   aeo-kvm                   Switch to Linux (default on Windows)
  *   aeo-kvm switch-to-linux   Switch to Linux (Host 2, HDMI_2)
  *   aeo-kvm switch-to-windows Switch to Windows (Host 1, HDMI_3)
+ *   aeo-kvm switch-to-macbook Switch to MacBook (Host 3, HDMI_4)
  */
 
 // Windows installer - imported early but doesn't load hidapi
+import { basename } from "path";
 import {
   isInstallMode,
   isUninstallMode,
-  isInstalledLocation,
   install,
   uninstall,
   showHelp,
@@ -45,8 +46,12 @@ async function main(): Promise<void> {
   const { switchDevices } = await import("./hid-ffi");
   const { switchTV } = await import("./tv");
 
-  // Default: switch to the OTHER platform
-  const defaultCommand = process.platform === "win32" ? "switch-to-linux" : "switch-to-windows";
+  // Default: switch to the OTHER platform, unless launched via target-specific wrapper exe.
+  const exeName = basename(process.execPath).toLowerCase();
+  const defaultCommand =
+    process.platform === "win32"
+      ? exeName === "switch-to-macbook.exe" ? "switch-to-macbook" : "switch-to-linux"
+      : "switch-to-windows";
   const command = args.find((a) => !a.startsWith("-")) || defaultCommand;
 
   switch (command) {
@@ -62,9 +67,15 @@ async function main(): Promise<void> {
       await switchTV("HDMI_3");
       console.log("[KVM] Done");
       break;
+    case "switch-to-macbook":
+      console.log("[KVM] Switching to MacBook...");
+      await switchDevices("macbook");
+      await switchTV("HDMI_4");
+      console.log("[KVM] Done");
+      break;
     default:
       console.log(`Unknown command: ${command}`);
-      console.log("Usage: aeo-kvm [switch-to-linux|switch-to-windows]");
+      console.log("Usage: aeo-kvm [switch-to-linux|switch-to-windows|switch-to-macbook]");
       process.exit(1);
   }
 }

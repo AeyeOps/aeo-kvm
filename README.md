@@ -27,15 +27,16 @@ Result: press one button, everything switches together.
                     |   LG TV (HDMI)  |
                     +-----------------+
                              |
-         +-------------------+-------------------+
-         |                                       |
-    HDMI_2                                  HDMI_3
-   (Linux)                                (Windows)
+         +-------------------+-------------------+-------------------+
+         |                   |                   |
+    HDMI_2              HDMI_3              HDMI_4
+   (Linux)            (Windows)           (MacBook)
 
     +------------------+    +------------------+
     | Logi K950        |    | Logi M750 L      |
     | Host 1: Windows  |    | Host 1: Windows  |
-    | Host 2: Linux    |    | Host 2: Linux    |  <-- Back Button trigger
+    | Host 2: Linux    |    | Host 2: Linux    |
+    | Host 3: MacBook  |    | Host 3: MacBook  |  <-- Back/Forward triggers
     +------------------+    +------------------+
 ```
 
@@ -101,7 +102,7 @@ cd dist/linux-arm64   # or linux-x64
 
 The installer:
 - Copies files to `/opt/aeo-kvm/`
-- Configures Solaar rules for Back Button → switch-to-windows
+- Configures Solaar rules for Back Button → switch-to-windows and Forward Button → switch-to-macbook
 - Sets up Solaar autostart
 
 **First run:** Your TV will display a pairing prompt - accept it. The client key is saved to `tv-keys.json` for future use.
@@ -115,6 +116,7 @@ The installer:
    - Back Button → Open Application
    - Path: `%LOCALAPPDATA%\aeo-kvm\aeo-kvm.exe`
    - (No arguments needed - defaults to switch-to-linux)
+   - For Windows-to-MacBook, bind the adjacent button to `%LOCALAPPDATA%\aeo-kvm\switch-to-macbook.exe`
 
 **First run:** Your TV will display a pairing prompt - accept it. The client key is saved for future use.
 
@@ -123,6 +125,7 @@ The installer:
 ```bash
 aeo-kvm switch-to-linux     # HDMI_2 + devices to Host 2
 aeo-kvm switch-to-windows   # HDMI_3 + devices to Host 1
+aeo-kvm switch-to-macbook   # HDMI_4 + devices to Host 3
 aeo-kvm --verbose ...       # Show HID++ communication
 ```
 
@@ -140,9 +143,9 @@ TV IP is auto-discovered via SSDP if cached IP is unreachable.
 
 **Device Config** (edit `src/hid-ffi.ts` if needed):
 ```typescript
-const DEVICES: Record<string, { linux_host: number; windows_host: number }> = {
-  K950: { linux_host: 1, windows_host: 0 },  // host indices are 0-based
-  M750: { linux_host: 1, windows_host: 0 },
+const DEVICES: Record<string, { linux_host: number; windows_host: number; macbook_host: number }> = {
+  K950: { linux_host: 1, windows_host: 0, macbook_host: 2 },  // host indices are 0-based
+  M750: { linux_host: 1, windows_host: 0, macbook_host: 2 },
 };
 ```
 
@@ -151,6 +154,7 @@ const DEVICES: Record<string, { linux_host: number; windows_host: number }> = {
 Currently hardcoded in `src/main-ffi.ts`:
 - Linux: `HDMI_2` (line 56)
 - Windows: `HDMI_3` (line 62)
+- MacBook: `HDMI_4`
 
 To use different inputs, edit the source and rebuild:
 ```typescript

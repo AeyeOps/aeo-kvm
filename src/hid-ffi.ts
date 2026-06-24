@@ -8,10 +8,10 @@ const LOGITECH_VID = 0x046d;
 const FEATURE_CHANGE_HOST = 0x1814;
 const SW_ID = 0x0a; // Software ID to distinguish our requests from Solaar's
 
-// Device configurations: name pattern -> { linux_host, windows_host } (0-indexed)
-const DEVICES: Record<string, { linux_host: number; windows_host: number }> = {
-  K950: { linux_host: 1, windows_host: 0 },
-  M750: { linux_host: 1, windows_host: 0 },
+// Device configurations: name pattern -> host index per target (0-indexed)
+const DEVICES: Record<string, { linux_host: number; windows_host: number; macbook_host: number }> = {
+  K950: { linux_host: 1, windows_host: 0, macbook_host: 2 },
+  M750: { linux_host: 1, windows_host: 0, macbook_host: 2 },
 };
 
 interface LogitechDevice {
@@ -265,8 +265,8 @@ async function switchHostWithRetry(
   return false;
 }
 
-export async function switchDevices(target: "linux" | "windows"): Promise<boolean> {
-  const hostKey = `${target}_host` as "linux_host" | "windows_host";
+export async function switchDevices(target: "linux" | "windows" | "macbook"): Promise<boolean> {
+  const hostKey = `${target}_host` as "linux_host" | "windows_host" | "macbook_host";
   const verbose = true; // Always verbose for better UX
 
   log(`switchDevices: target=${target}`);
@@ -290,7 +290,7 @@ export async function switchDevices(target: "linux" | "windows"): Promise<boolea
       log(`switchDevices: processing ${product} (serial=${serial}, ${interfaces.length} interfaces)`);
 
       // Check if this is a device we care about
-      let deviceConfig: { linux_host: number; windows_host: number } | null = null;
+      let deviceConfig: { linux_host: number; windows_host: number; macbook_host: number } | null = null;
       for (const [name, config] of Object.entries(DEVICES)) {
         if (product.includes(name)) {
           deviceConfig = config;

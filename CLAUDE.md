@@ -23,10 +23,10 @@ When to update this file:
 
 ## Physical Architecture
 ```
-LG TV (SSDP auto-discovery) | HDMI_2=Linux | HDMI_3=Windows
+LG TV (SSDP auto-discovery) | HDMI_2=Linux | HDMI_3=Windows | HDMI_4=MacBook
 Logi K950 + M750 L (Bluetooth only, no Bolt/Unifying receiver)
-  Host1=Windows | Host2=Linux
-Trigger: Mouse Back Button → switch HDMI + hosts
+  Host1=Windows | Host2=Linux | Host3=MacBook
+Trigger: Mouse Back Button -> Windows, Forward Button -> MacBook
 ```
 
 ## Code Architecture
@@ -67,7 +67,7 @@ main-ffi.ts          CLI entry, routes to switch commands
 - Output: dist/
 - Solaar config: ~/.config/solaar/rules.yaml
 - TV config: tv-keys.json (Linux: ~/.config/aeo-kvm/, Windows: same dir as exe)
-- HDMI inputs: hardcoded in src/main-ffi.ts (~line 56-62)
+- HDMI inputs: hardcoded in src/main-ffi.ts
 
 ## Known Limitations
 - First button press after switching back to Linux may be ignored (~3-5s Solaar reconnection window)

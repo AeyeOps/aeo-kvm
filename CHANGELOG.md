@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- Windows-side `switch-to-macbook` target for Logitech host slot 3 and LG TV `HDMI_4`.
+- Windows installer creates `switch-to-macbook.exe` for Logi Options+ Smart Actions.
+- Linux installer maps Forward Button to `switch-to-macbook` while keeping Back Button mapped to Windows.
+
 ## [0.2.0] - 2026-01-18
 
 ### Fixed

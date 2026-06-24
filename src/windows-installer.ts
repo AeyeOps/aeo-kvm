@@ -69,6 +69,10 @@ export async function install(): Promise<void> {
   console.log(`[Copy] aeo-kvm.exe`);
   await Bun.write(exeDest, Bun.file(process.execPath));
 
+  const macbookExeDest = join(INSTALL_DIR, "switch-to-macbook.exe");
+  console.log(`[Copy] switch-to-macbook.exe`);
+  await Bun.write(macbookExeDest, Bun.file(process.execPath));
+
   // Create config file with placeholder
   const configFile = join(INSTALL_DIR, "tv-keys.json");
   if (!existsSync(configFile)) {
@@ -101,6 +105,9 @@ export async function install(): Promise<void> {
   console.log("   4. For Back Button, choose 'Open Application'");
   console.log(`   5. Browse to: ${exeDest}`);
   console.log("   (No argument needed - defaults to switch-to-linux)");
+  console.log("");
+  console.log("   For Windows-to-MacBook, bind another action to:");
+  console.log(`   ${macbookExeDest}`);
   console.log("");
   console.log("============================================================");
 }
@@ -140,7 +147,10 @@ export function showHelp(): void {
   console.log("");
   console.log("Usage:");
   console.log("  aeo-kvm.exe                    Switch to Linux (default on Windows)");
+  console.log("  aeo-kvm.exe switch-to-linux    Switch to Linux");
   console.log("  aeo-kvm.exe switch-to-windows  Switch back to Windows");
+  console.log("  aeo-kvm.exe switch-to-macbook  Switch to MacBook");
+  console.log("  switch-to-macbook.exe          Switch to MacBook for Logi Options+");
   console.log("  aeo-kvm.exe --uninstall        Remove AEO-KVM");
   console.log("");
   console.log("Config:");

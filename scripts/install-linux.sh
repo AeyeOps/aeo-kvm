@@ -52,6 +52,9 @@ cat > ~/.config/solaar/rules.yaml << EOF
 - Rule:
   - Key: [Back Button, pressed]
   - Execute: [$INSTALL_DIR/aeo-kvm, switch-to-windows]
+- Rule:
+  - Key: [Forward Button, pressed]
+  - Execute: [$INSTALL_DIR/aeo-kvm, switch-to-macbook]
 ...
 EOF
 echo "  Rules installed to ~/.config/solaar/rules.yaml"
@@ -89,4 +92,5 @@ echo " Solaar rules: ~/.config/solaar/rules.yaml"
 echo " Autostart:    ~/.config/autostart/solaar.desktop"
 echo ""
 echo " Test: Press Back Button on mouse to switch to Windows"
+echo "       Press Forward Button on mouse to switch to MacBook"
 echo "============================================================"
