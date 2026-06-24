@@ -42,7 +42,15 @@ sha256() {
 # so this produces a genuine Linux arm64 .so without a separate Linux host.
 build_linux_lib_in_container() {
     echo "[lib] Building Linux libhidapi-hidraw.so.0 in an Apple 'container' VM..."
-    container system start &>/dev/null || true
+    # Lifecycle is driven entirely by Apple's `container` CLI (not brew services).
+    # We only need it transiently: start it if it isn't already up, and stop it
+    # afterward only if we were the ones who started it.
+    local started=0
+    if ! container system status &>/dev/null; then
+        container system start &>/dev/null && started=1
+    fi
+
+    local rc=0
     container run --rm -v "$LIBS_DIR:/out" ubuntu:24.04 bash -c '
         set -e
         export DEBIAN_FRONTEND=noninteractive
@@ -53,9 +61,17 @@ build_linux_lib_in_container() {
         cmake .. -DCMAKE_BUILD_TYPE=Release >/dev/null
         make -j"$(nproc)" >/dev/null
         cp src/linux/libhidapi-hidraw.so.0 /out/
-    '
-    [ -f "$LIBS_DIR/libhidapi-hidraw.so.0" ] \
-        || { echo "Error: container build did not produce libhidapi-hidraw.so.0"; exit 1; }
+    ' || rc=$?
+
+    # Tear down the VM/service if this build started it (transient build use).
+    if [ "$started" = "1" ]; then
+        echo "  Stopping the container service (started only for this build)..."
+        container system stop &>/dev/null || true
+    fi
+
+    if [ "$rc" -ne 0 ] || [ ! -f "$LIBS_DIR/libhidapi-hidraw.so.0" ]; then
+        echo "Error: container build did not produce libhidapi-hidraw.so.0"; exit 1
+    fi
     echo "  Linux libhidapi-hidraw.so.0 ready (built in Apple container VM)"
 }
 

@@ -29,8 +29,10 @@ All notable changes to this project will be documented in this file.
   sha256 (`shasum` on macOS).
 - On macOS, `build/setup.sh` can now build the **Linux** target too: when Apple's
   `container` CLI is present it compiles `libhidapi-hidraw.so.0` inside a
-  throwaway Ubuntu container VM, so a Mac can produce all three packages. Falls
-  back to the skip message if `container` isn't installed.
+  throwaway Ubuntu container VM, so a Mac can produce all three packages. The
+  container service is managed transiently via the Apple `container` CLI (not
+  brew) — started only if down and stopped afterward only if the build started
+  it. Falls back to the skip message if `container` isn't installed.
 - `findLibPath` (hidapi-ffi) resolves `libhidapi.dylib` and the Homebrew path on
   macOS.
 
