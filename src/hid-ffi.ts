@@ -265,12 +265,51 @@ async function switchHostWithRetry(
   return false;
 }
 
-export async function switchDevices(target: "linux" | "windows" | "macbook"): Promise<boolean> {
+/**
+ * Non-destructive probe: open each Logitech HID++ interface and report whether
+ * macOS allows it. Sends NO CHANGE_HOST, so it switches nothing. Used to verify
+ * keyboard (K950) HID access after granting Input Monitoring. Results also go to
+ * the log file so it can be run from a GUI .app (no stdout) and read back.
+ */
+export async function probeDevices(): Promise<void> {
+  log("probeDevices: start");
+  console.log("[PROBE] Opening Logitech HID++ interfaces (no switch)...");
+
+  if (!(await initHidApi())) {
+    log("probeDevices: FAILED to init hidapi");
+    console.error("  Failed to initialize hidapi");
+    return;
+  }
+
+  try {
+    const bySerial = findLogitechDevices(false);
+    for (const [, ifaces] of bySerial) {
+      if (ifaces.length === 0) continue;
+      const product = ifaces[0].productString;
+      for (const iface of ifaces) {
+        const dev = new HidDevice(iface.path);
+        const ok = dev.open();
+        const line = `probe: ${product} usage_page=0x${iface.usagePage.toString(16).padStart(4, "0")} open=${ok ? "OK" : "DENIED"}`;
+        log(line);
+        console.log(`  ${line}`);
+        if (ok) dev.close();
+      }
+    }
+  } finally {
+    exitHidApi();
+  }
+  log("probeDevices: done");
+}
+
+export async function switchDevices(
+  target: "linux" | "windows" | "macbook",
+  only?: "K950" | "M750"
+): Promise<boolean> {
   const hostKey = `${target}_host` as "linux_host" | "windows_host" | "macbook_host";
   const verbose = true; // Always verbose for better UX
 
-  log(`switchDevices: target=${target}`);
-  console.log(`[HID] Switching devices to host: ${target}...`);
+  log(`switchDevices: target=${target}${only ? ` only=${only}` : ""}`);
+  console.log(`[HID] Switching ${only ?? "devices"} to host: ${target}...`);
 
   if (!(await initHidApi())) {
     log(`switchDevices: FAILED to init hidapi`);
@@ -288,6 +327,13 @@ export async function switchDevices(target: "linux" | "windows" | "macbook"): Pr
 
       const product = interfaces[0].productString;
       log(`switchDevices: processing ${product} (serial=${serial}, ${interfaces.length} interfaces)`);
+
+      // Restrict to a single device class when requested (macOS splits the
+      // switch: mouse in the user app, keyboard in the root helper).
+      if (only && !product.includes(only)) {
+        log(`switchDevices: SKIP ${product} (only=${only})`);
+        continue;
+      }
 
       // Check if this is a device we care about
       let deviceConfig: { linux_host: number; windows_host: number; macbook_host: number } | null = null;

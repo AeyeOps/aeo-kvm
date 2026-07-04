@@ -55,14 +55,18 @@ Result: press one button, everything switches together.
 **Runtime:**
 - Linux: [Solaar](https://pwr-solaar.github.io/Solaar/) for button diversion
 - Windows: Logi Options+ for button binding
-- **macOS: [Karabiner-Elements](https://karabiner-elements.pqrs.org/)** for
-  button binding (`brew install --cask karabiner-elements`) — required
-  dependency; it needs an Input Monitoring grant on first run
+- macOS: **Logi Options+** for button binding — the M750 Back/Forward buttons
+  open the bundled `Switch to Windows.app` / `Switch to Linux.app` wrappers,
+  each of which needs an **Input Monitoring** grant (System Settings →
+  Privacy & Security). Keyboard switching additionally uses a root-owned
+  helper installed once with `scripts/macos-install-kbd-helper.sh`.
 - LG WebOS TV with "IP Control" enabled
 
 > **TV pairing (all platforms, first run):** the first switch auto-discovers the
 > TV over SSDP and the TV shows a pairing prompt — accept it once. The client key
-> is saved to `tv-keys.json`, so later switches are silent.
+> is saved to `tv-keys.json`, so later switches are silent. If the host can't
+> see the TV via SSDP (e.g. a Mac behind a travel-router NAT), seed the TV's IP
+> in `tv-keys.json` (`{"ip": "..."}`) — the cached IP is always tried first.
 
 ### Supported Devices
 
@@ -79,7 +83,7 @@ Result: press one button, everything switches together.
 1. **Build** from source (see [Building](#building) below); on macOS, `make macos` does steps 1–2 and 4
 2. **Run installer** for your platform (`install.sh` or `aeo-kvm-installer.exe`)
 3. **Accept TV pairing** prompt on first run
-4. **Configure trigger** button in Solaar (Linux), Logi Options+ (Windows), or Karabiner-Elements (macOS, auto-enabled)
+4. **Configure trigger** button in Solaar (Linux) or Logi Options+ (Windows; on macOS `scripts/macos-optionsplus-bind.py` writes the bindings for you)
 
 ## Building
 
@@ -133,7 +137,7 @@ dist/
 Build auto-deploys:
 - Linux: `/opt/aeo-kvm/`
 - Windows: via SSH to `%LOCALAPPDATA%\aeo-kvm\`
-- macOS: prints the `install.sh` command (run it to deploy + wire Karabiner)
+- macOS: prints the `install.sh` command (or run `make macos` for the full lifecycle)
 
 ## Installation
 
@@ -166,22 +170,36 @@ The installer:
 
 ### macOS
 
-One command does the whole lifecycle (prerequisites → build → install → enable):
+One command does the build + install (prerequisites → build → install → `.app` wrappers):
 
 ```bash
 make macos
 ```
 
-It installs `bun`, `hidapi`, and **Karabiner-Elements** (a required dependency),
-builds the native binary, installs to `~/.local/share/aeo-kvm/` (**no sudo**), and
-auto-enables the Karabiner rule mapping the M750 Back button → `switch-to-windows`
-and Forward button → `switch-to-linux`. It's idempotent and survives restart
-(Karabiner runs as a login agent).
+It installs `bun` and `hidapi` (Homebrew), builds the native binary, installs to
+`~/.local/share/aeo-kvm/` (**no sudo**), and builds the `Switch to Windows.app` /
+`Switch to Linux.app` wrappers that Logi Options+ launches. Idempotent — safe to
+re-run after a code change.
 
-Two one-time approvals macOS requires: **Input Monitoring** for Karabiner-Elements
-(and for `~/.local/share/aeo-kvm/aeo-kvm` if a switch fires but the devices don't
-move), and the **TV pairing** prompt on the first button press. Full setup,
-permissions, and validation: [`docs/macos-trigger-setup.md`](docs/macos-trigger-setup.md).
+Then three one-time steps:
+
+1. **Keyboard root helper** (admin password once):
+   `bash scripts/macos-install-kbd-helper.sh` — the K950 keyboard can only be
+   opened by root (macOS blocks non-root keyboard HID access), so keyboard
+   switching runs through a root-owned helper whitelisted for exactly three
+   commands in `/etc/sudoers.d/aeo-kvm`.
+2. **Bind the buttons**: `python3 scripts/macos-optionsplus-bind.py` writes
+   M750 Back → Switch to Windows / Forward → Switch to Linux directly into
+   Logi Options+' settings (backed up first) and restarts its agent.
+3. **Input Monitoring**: System Settings → Privacy & Security → Input
+   Monitoring → add **both** `~/.local/share/aeo-kvm/Switch to *.app`. Re-add
+   them after any wrapper rebuild — the grant is pinned to the code signature,
+   and the toggle alone won't refresh a stale entry.
+
+First button press: accept the pairing prompt on the LG TV. If the Mac can't
+reach the TV via SSDP (router/NAT between them), seed the TV IP in
+`~/.config/aeo-kvm/tv-keys.json` (`{"ip": "..."}`). Full setup, permissions,
+gotchas, and validation: [`docs/macos-trigger-setup.md`](docs/macos-trigger-setup.md).
 
 ## Usage
 

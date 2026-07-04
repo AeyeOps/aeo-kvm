@@ -237,10 +237,15 @@ if [ "$BUILD_MAC" = "1" ]; then
     echo "  Building macOS executable ($MAC_TARGET)..."
     mkdir -p "$MAC_DIST"
     bun build --compile --target=$MAC_TARGET src/main-ffi.ts --outfile "$MAC_DIST/aeo-kvm"
+    # Prebundle arg-free per-target executables (Logi Options+ Smart Actions can
+    # only launch an app with no arguments). The binary picks its target from its
+    # own filename, so each copy is a ready-to-bind switch button.
+    cp "$MAC_DIST/aeo-kvm" "$MAC_DIST/switch-to-windows"
+    cp "$MAC_DIST/aeo-kvm" "$MAC_DIST/switch-to-linux"
     cp "$LIBS_DIR/libhidapi.dylib" "$MAC_DIST/"
     cp "$PROJECT_DIR/scripts/install-macos.sh" "$MAC_DIST/install.sh"
-    chmod +x "$MAC_DIST"/*.sh "$MAC_DIST/aeo-kvm"
-    (cd "$MAC_DIST" && sha256 aeo-kvm libhidapi.dylib > SHA256SUMS)
+    chmod +x "$MAC_DIST"/*.sh "$MAC_DIST/aeo-kvm" "$MAC_DIST/switch-to-windows" "$MAC_DIST/switch-to-linux"
+    (cd "$MAC_DIST" && sha256 aeo-kvm switch-to-windows switch-to-linux libhidapi.dylib > SHA256SUMS)
     echo "  macOS package: dist/macos-$MAC_ARCHN/"
 fi
 
@@ -269,7 +274,7 @@ if [ "$BUILD_LINUX" = "1" ] && [ "$HOST_OS" = "Linux" ]; then
 fi
 
 if [ "$BUILD_MAC" = "1" ] && [ "$HOST_OS" = "Darwin" ]; then
-    echo "  macOS package built. Install + wire the Karabiner trigger with:"
+    echo "  macOS package built. Install (then wire buttons in Logi Options+) with:"
     echo "    bash dist/macos-$MAC_ARCHN/install.sh   (no sudo; or run 'make macos' for the full lifecycle)"
 fi
 

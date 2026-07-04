@@ -2,22 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.3.0] - 2026-07-04
+
+macOS is now a fully working third KVM host: one M750 button press switches
+mouse, keyboard, and the LG TV input, validated end-to-end in all three
+directions (Mac→Linux, Mac→Windows, and back from both).
 
 ### Added
-- macOS-side return switching via Karabiner-Elements: M750 Back button →
-  `switch-to-windows`, Forward button → `switch-to-linux`. See
-  `docs/macos-trigger-setup.md`. (Switch send pending hardware validation.)
+- macOS-side return switching via Logi Options+: M750 Back button →
+  `Switch to Windows.app`, Forward button → `Switch to Linux.app`.
+  `scripts/macos-make-apps.sh` wraps the per-target executables in minimal
+  `.app` bundles (Options+ "Open application" requires a `.app`, and the TCC
+  Input Monitoring grant must land on the exact process that opens the HID
+  device), and `scripts/macos-optionsplus-bind.py` binds the buttons by
+  editing Options+' `settings.db` directly — idempotent, backed up, restarts
+  the Options+ agent and verifies it actually came back up.
+- macOS root keyboard helper: the K950 refuses `hid_open` from non-root
+  processes (kIOReturnNotPrivileged — an anti-keylogger wall beyond TCC), so
+  keyboard setHost runs through a root-owned copy at
+  `/usr/local/libexec/aeo-kvm/aeo-kvm-kbd`, invoked via passwordless
+  `sudo -n` whitelisted for exactly three commands in `/etc/sudoers.d/aeo-kvm`.
+  Installed by `scripts/macos-install-kbd-helper.sh` (admin password once).
 - `make macos` (`scripts/macos-lifecycle.sh`): one-command lifecycle that
-  installs prerequisites (bun, hidapi, Karabiner-Elements), builds, installs to
-  `~/.local/share/aeo-kvm/` (no sudo), and auto-enables the Karabiner rule by
-  merging it into the active profile. Idempotent; survives restart (Karabiner is
-  a login agent).
+  installs prerequisites (bun, hidapi), builds, installs to
+  `~/.local/share/aeo-kvm/` (no sudo), and (re)builds the `.app` wrappers when
+  they are stale — warning that rebuilt wrappers need their Input Monitoring
+  grants re-added (TCC pins the grant to the code signature).
+- TV control from a NAT'd host: `tv-keys.json` accepts a manually seeded
+  `"ip"` — the cached-IP path (TCP connectivity check to port 3001) runs
+  before SSDP, so a Mac behind a travel router, where multicast discovery
+  can't cross the NAT, still switches the TV over WebOS/IP.
+- `scripts/macos-hid-diag.ts`: standalone HID open/enumerate diagnostic.
 - `build/setup.sh` now builds a macOS (`bun-darwin-arm64`) target and obtains
   `libhidapi.dylib` via Homebrew.
 - ioreg-confirmed that macOS exposes the `0xFF43` HID++ interface on both the
-  K950 and M750, and the M750's 5 buttons as standard usages — so the switch can
-  reach both devices and Karabiner can bind the buttons.
+  K950 and M750, and the M750's 5 buttons as standard usages — so the switch
+  can reach both devices and the buttons are bindable.
 - Windows-side `switch-to-macbook` target for Logitech host slot 3 and LG TV `HDMI_4`.
 - Windows installer creates `switch-to-macbook.exe` for Logi Options+ Smart Actions.
 - Linux installer maps Forward Button to `switch-to-macbook` while keeping Back Button mapped to Windows.

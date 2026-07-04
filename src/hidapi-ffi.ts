@@ -131,6 +131,16 @@ export async function initHidApi(): Promise<boolean> {
   }
 }
 
+export function hidError(): string {
+  if (!hidapi) return "(hidapi not initialized)";
+  try {
+    const p = hidapi.symbols.hid_error(0);
+    return p ? readWideString(Number(p)) : "(no error string)";
+  } catch (e) {
+    return `(hid_error threw: ${e})`;
+  }
+}
+
 export function exitHidApi(): void {
   if (hidapi) {
     hidapi.symbols.hid_exit();

@@ -28,29 +28,44 @@ if ! command -v brew &>/dev/null; then
 fi
 brew list hidapi &>/dev/null || { echo "[prereq] brew install hidapi..."; brew install hidapi; }
 
-# 3. Karabiner-Elements (the trigger). The system-extension activation needs a
-#    password + a Privacy approval, so this step may require interaction.
-if [ ! -d "/Applications/Karabiner-Elements.app" ]; then
-    echo "[prereq] Installing Karabiner-Elements..."
-    brew install --cask karabiner-elements \
-        || echo "  [warn] Run 'brew install --cask karabiner-elements' yourself, then re-run this script."
-fi
-
-# 4. Build (macOS only)
+# 3. Build (macOS only). Produces aeo-kvm plus the prebundled arg-free
+#    switch-to-windows / switch-to-linux executables.
 echo "[build] ./build/setup.sh --mac-only"
 ./build/setup.sh --mac-only
 
-# 5. Install + enable the Karabiner rule
+# 4. Install (copies binary + switch-to-* + dylib under $HOME)
 ARCH=$(uname -m); [ "$ARCH" = "x86_64" ] && DARCH=x64 || DARCH=arm64
 bash "dist/macos-$DARCH/install.sh"
 
+# 5. .app wrappers for Logi Options+ ("Open application" needs a .app, and the
+#    Input Monitoring grant must land on the exact process opening the HID
+#    device). Rebuilt only when the installed binary changed: a rebuild
+#    re-signs the bundles, which silently invalidates their existing grants.
+INSTALL_DIR="$HOME/.local/share/aeo-kvm"
+if ! cmp -s "$INSTALL_DIR/switch-to-windows" \
+            "$INSTALL_DIR/Switch to Windows.app/Contents/MacOS/switch-to-windows"; then
+    bash "$PROJECT_DIR/scripts/macos-make-apps.sh"
+    APPS_REBUILT=1
+fi
+
 echo ""
 echo "=== Lifecycle complete ==="
-echo "Remaining one-time steps (macOS protects these; no script can do them):"
-echo "  1. System Settings -> Privacy & Security -> Input Monitoring:"
-echo "     enable Karabiner-Elements (and ~/.local/share/aeo-kvm/aeo-kvm if a"
-echo "     switch fires but the mouse/keyboard do not move host)."
-echo "  2. Press a button once and accept the LG TV pairing prompt (auto-found)."
+if [ -n "${APPS_REBUILT:-}" ]; then
+    echo "[ACTION REQUIRED] The .app wrappers were (re)built. TCC pins Input"
+    echo "  Monitoring grants to the code signature, so remove and RE-ADD both"
+    echo "  apps in System Settings -> Privacy & Security -> Input Monitoring"
+    echo "  (toggling an existing entry off/on is NOT enough):"
+    echo "    $INSTALL_DIR/Switch to Windows.app"
+    echo "    $INSTALL_DIR/Switch to Linux.app"
+fi
+echo "One-time steps if not done yet:"
+echo "  1. Keyboard root helper (admin password once):"
+echo "       bash scripts/macos-install-kbd-helper.sh"
+echo "  2. Bind the M750 buttons in Logi Options+ (edits settings.db directly):"
+echo "       python3 scripts/macos-optionsplus-bind.py"
+echo "  3. Input Monitoring for BOTH Switch to *.app (see above)."
+echo "  4. First switch: accept the LG TV pairing prompt. Behind a router/NAT"
+echo "     where SSDP can't reach the TV, seed ~/.config/aeo-kvm/tv-keys.json"
+echo "     with {\"ip\": \"<tv-ip>\"} first."
 echo ""
-echo "Karabiner auto-starts at login, so the trigger survives restart."
-echo "From then on: Back button -> Windows, Forward button -> Linux."
+echo "Once wired: Back button -> Windows, Forward button -> Linux."

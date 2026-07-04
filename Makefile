@@ -3,7 +3,7 @@
 build:
 	./build/setup.sh
 
-# Full macOS lifecycle: prerequisites -> build -> install (+enable Karabiner rule)
+# Full macOS lifecycle: prerequisites -> build -> install -> .app wrappers
 macos:
 	bash scripts/macos-lifecycle.sh
 
