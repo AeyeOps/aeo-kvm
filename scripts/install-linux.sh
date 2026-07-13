@@ -77,7 +77,32 @@ echo "  Autostart entry created"
 # Restart Solaar to load new rules (HUP signal doesn't reliably reload)
 echo "[Restart] Restarting Solaar to load rules..."
 pkill solaar 2>/dev/null || true
-sleep 1
+# Never leave Solaar dead: relaunch on ANY exit (set -e aborts included) -
+# a stopped Solaar breaks the already-working triggers too.
+trap 'pgrep -x solaar >/dev/null || nohup solaar --window=hide >/dev/null 2>&1 &' EXIT
+# Wait for the old process to actually exit - Solaar flushes its in-memory
+# config to config.yaml on shutdown, which would overwrite an edit made too early.
+for _ in $(seq 1 20); do pgrep -x solaar >/dev/null || break; sleep 0.1; done
+
+# Divert the trigger buttons on the M750 so presses reach Solaar rules
+# instead of the OS. Scoped to the M750's device block so a future second
+# device with the same key ids is never touched.
+SOLAAR_CFG="$HOME/.config/solaar/config.yaml"
+M750_RANGE='/_NAME:.*M750/,/^- /'
+m750_block() { sed -n "${M750_RANGE}p" "$SOLAAR_CFG" 2>/dev/null; }
+divert() {
+    if m750_block | grep -q "divert-keys:.*$1: 0x0"; then
+        sed -i "${M750_RANGE}{/divert-keys:/s/$1: 0x0/$1: 0x1/}" "$SOLAAR_CFG"
+        echo "  $2 ($1) diverted"
+    elif m750_block | grep -q "divert-keys:.*$1: 0x1"; then
+        echo "  $2 already diverted"
+    else
+        echo "  WARNING: no M750 divert-keys entry for $2 in $SOLAAR_CFG - divert it in the Solaar UI"
+    fi
+}
+divert 0x53 "Back Button"
+divert 0x56 "Forward Button"
+
 nohup solaar --window=hide > /dev/null 2>&1 &
 sleep 2
 echo "  Solaar restarted"

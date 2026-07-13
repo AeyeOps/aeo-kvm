@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2026-07-13
+
+Completes the third-host rollout on the Linux side: the Forward Button →
+MacBook trigger now works out of the box.
+
+### Fixed
+- Linux installer now diverts the M750 trigger buttons (Back `0x53`, Forward
+  `0x56`) in Solaar's `config.yaml` while Solaar is stopped. Previously it
+  wrote the rules but never diverted the keys, so on a machine without a
+  manual divert the button presses never reached Solaar rules and the
+  triggers were silently inert.
+- `uninstall-linux.sh` removed the wrong directory (`/opt/aeo/kvm` instead of
+  `/opt/aeo-kvm`), leaving the installed binary behind.
+- Uninstall now stops Solaar before removing rules (rules only unload on a
+  full restart), reverts the trigger-button diverts (a diverted key with no
+  rule is a dead button), and restarts Solaar.
+
 ## [0.3.0] - 2026-07-04
 
 macOS is now a fully working third KVM host: one M750 button press switches

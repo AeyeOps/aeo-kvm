@@ -45,3 +45,7 @@ archive/
 
 # AI demo generation output
 tools/generate-demo/output/
+
+# Agent session state (local, generated)
+.claude/
+.omc/

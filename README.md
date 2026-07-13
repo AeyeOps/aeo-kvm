@@ -1,8 +1,8 @@
 # aeo-kvm
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.0-green.svg)](CHANGELOG.md)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)](#requirements)
+[![Version](https://img.shields.io/badge/version-0.3.1-green.svg)](CHANGELOG.md)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#requirements)
 
 Software KVM switch for Logitech multi-host devices and LG WebOS TVs.
 
@@ -14,7 +14,7 @@ Modern multi-host keyboards and mice (like Logitech's K950/M750) let you pair wi
 
 aeo-kvm coordinates all switching in one action:
 
-1. **Mouse button press** triggers the switch (via Solaar on Linux, Logi Options+ on Windows)
+1. **Mouse button press** triggers the switch (via Solaar on Linux, Logi Options+ on Windows and macOS)
 2. **HID++ commands** switch Logitech devices to the target host
 3. **WebSocket commands** switch LG TV to the corresponding HDMI input
 
@@ -151,7 +151,8 @@ cd dist/linux-arm64   # or linux-x64
 The installer:
 - Copies files to `/opt/aeo-kvm/`
 - Configures Solaar rules for Back Button → switch-to-windows and Forward Button → switch-to-macbook
-- Sets up Solaar autostart
+- Diverts both trigger buttons in Solaar's config (required for the rules to fire; Solaar must have seen the mouse once so the device entry exists)
+- Sets up Solaar autostart and restarts Solaar
 
 **First run:** Your TV will display a pairing prompt - accept it. The client key is saved to `tv-keys.json` for future use.
 
@@ -232,15 +233,14 @@ const DEVICES: Record<string, { linux_host: number; windows_host: number; macboo
 
 **HDMI Inputs** (requires rebuild to change):
 
-Currently hardcoded in `src/main-ffi.ts`:
-- Linux: `HDMI_2` (line 56)
-- Windows: `HDMI_3` (line 62)
-- MacBook: `HDMI_4`
-
-To use different inputs, edit the source and rebuild:
+Hardcoded in the `TV_INPUT` map in `src/main-ffi.ts` — edit and rebuild to use
+different inputs:
 ```typescript
-// Change "HDMI_2" to your input
-await switchTV("HDMI_1");  // or HDMI_2, HDMI_3, HDMI_4
+const TV_INPUT: Record<string, string> = {
+  linux: "HDMI_2",
+  windows: "HDMI_3",
+  macbook: "HDMI_4",
+};
 ```
 
 ## How It Works
@@ -280,12 +280,12 @@ Issues and PRs welcome at [github.com/AeyeOps/aeo-kvm](https://github.com/AeyeOp
 
 **Development requirements:**
 - [Bun](https://bun.sh) runtime
-- Linux environment (cross-compiles to Windows)
-- First build installs system dependencies via sudo
+- Linux or macOS build host (Windows is a cross-compiled target)
+- First build on a Linux host installs system dependencies via sudo
 
 **Build:**
 ```bash
-make build    # Full build (Linux + Windows)
+make build    # Builds every platform this host can + auto-deploy
 make dev ARGS="switch-to-linux --verbose"  # Test locally
 ```
 
