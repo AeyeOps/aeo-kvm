@@ -1,7 +1,7 @@
 # aeo-kvm
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.1-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.2-green.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#requirements)
 
 Software KVM switch for Logitech multi-host devices and LG WebOS TVs.
@@ -143,6 +143,11 @@ Build auto-deploys:
 - macOS: prints the `install.sh` command (or run `make macos` for the full lifecycle)
 
 ## Installation
+
+Versioned packages are available from [GitHub Releases](https://github.com/AeyeOps/aeo-kvm/releases).
+Extract the archive for your OS and architecture, then run its `install.sh`;
+Windows uses the standalone installer executable. macOS packages also include
+the helper scripts referenced below and the canonical version metadata.
 
 ### Linux
 

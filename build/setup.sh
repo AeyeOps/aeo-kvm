@@ -244,6 +244,9 @@ if [ "$BUILD_MAC" = "1" ]; then
     cp "$MAC_DIST/aeo-kvm" "$MAC_DIST/switch-to-linux"
     cp "$LIBS_DIR/libhidapi.dylib" "$MAC_DIST/"
     cp "$PROJECT_DIR/scripts/install-macos.sh" "$MAC_DIST/install.sh"
+    cp "$PROJECT_DIR/pyproject.toml" "$MAC_DIST/"
+    mkdir -p "$MAC_DIST/scripts"
+    cp "$PROJECT_DIR/scripts/macos-make-apps.sh" "$PROJECT_DIR/scripts/macos-install-kbd-helper.sh" "$PROJECT_DIR/scripts/macos-optionsplus-bind.py" "$MAC_DIST/scripts/"
     chmod +x "$MAC_DIST"/*.sh "$MAC_DIST/aeo-kvm" "$MAC_DIST/switch-to-windows" "$MAC_DIST/switch-to-linux"
     (cd "$MAC_DIST" && sha256 aeo-kvm switch-to-windows switch-to-linux libhidapi.dylib > SHA256SUMS)
     echo "  macOS package: dist/macos-$MAC_ARCHN/"

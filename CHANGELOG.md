@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-11-01
+
+### Fixed
+- TV address recovery across routers and NAT: configure `discoverySubnet` in
+  `tv-keys.json` to find the saved WebOS TV identity over TCP after DHCP changes
+  its address. Connect once at the current IP after upgrading to learn its
+  `deviceUUID`. The pairing key is preserved and the recovered IP is saved
+  after registration.
+- Cached addresses and SSDP candidates are checked against the saved TV
+  identity before sending the pairing key. A subnet search never pairs with
+  or switches another TV.
+- TV commands require their matching successful response. A connection that
+  closes before confirmation now reports failure instead of remaining pending.
+- Package metadata and the README version now match `pyproject.toml`; macOS
+  app wrapper versions are read from that canonical version.
+- macOS packages include the wrapper, keyboard-helper, and button-binding
+  scripts referenced by their installer. Updates replace executable files
+  with fresh inodes so macOS does not reuse cached signatures from old files.
+- Regenerated dependency metadata removes the obsolete `node-hid` lockfile;
+  the current Bun FFI implementation has no package dependencies.
+
+### Added
+- Live TV regression coverage for identity learning, stale-address recovery,
+  pairing-key preservation, and rejection of a mismatched identity.
+
 ## [0.3.1] - 2026-07-13
 
 Completes the third-host rollout on the Linux side: the Forward Button →

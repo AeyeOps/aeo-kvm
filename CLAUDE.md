@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Directives
 - Validate before declaring root cause/solution
-- Version source of truth: pyproject.toml (package.json is stale)
+- Version source of truth: pyproject.toml; keep package.json, README, and CHANGELOG.md synchronized. macOS app wrappers read this version.
 - Document validated insights only
-- Request user validation for hardware/UI tests - no automated tests exist
+- Run the live TV regression tests; physical HID/button acceptance requires user validation
 - MINIMAL COMPLEXITY: Prefer existing tools over custom code
 
 ## Meta: CLAUDE.md Usage
