@@ -9,8 +9,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { homedir, networkInterfaces } from "os";
 import { createSocket, type RemoteInfo } from "dgram";
-import { connect } from "net";
 import { log } from "./hidapi-ffi";
+import { connectTV, discoverTVInSubnet, parseDiscoverySubnet, type IPv4Subnet } from "./tv-discovery";
 
 // Helper to log to both console and file
 function tvLog(msg: string): void {
@@ -32,47 +32,42 @@ function getConfigDir(): string {
 interface TvConfig {
   ip: string;
   clientKey: string;
+  deviceUUID?: string;
+  discoverySubnet?: IPv4Subnet;
 }
 
 function loadTvConfig(): TvConfig | null {
   const configDir = getConfigDir();
   const configFile = join(configDir, "tv-keys.json");
 
-  try {
-    if (existsSync(configFile)) {
-      const config = JSON.parse(readFileSync(configFile, "utf-8"));
-      if (config.ip) {
-        return {
-          ip: config.ip,
-          clientKey: config.key || "",
-        };
-      }
-    }
-  } catch {
-    // Ignore errors
+  if (!existsSync(configFile)) return null;
+  const config = JSON.parse(readFileSync(configFile, "utf-8"));
+  if (config.deviceUUID !== undefined && (typeof config.deviceUUID !== "string" || !config.deviceUUID)) {
+    throw new Error("TV deviceUUID must be a nonempty string");
   }
-  return null;
+  return {
+    ip: config.ip || "",
+    clientKey: config.key || "",
+    deviceUUID: config.deviceUUID,
+    discoverySubnet: config.discoverySubnet === undefined ? undefined : parseDiscoverySubnet(config.discoverySubnet),
+  };
 }
 
-// Save client key (preserves existing config)
-function saveClientKey(ip: string, key: string): void {
+function saveTvConfig(ip: string, key: string, deviceUUID: string): void {
   const configDir = getConfigDir();
   const configFile = join(configDir, "tv-keys.json");
 
-  try {
-    mkdirSync(configDir, { recursive: true });
+  mkdirSync(configDir, { recursive: true });
 
-    let config: Record<string, string> = {};
-    if (existsSync(configFile)) {
-      config = JSON.parse(readFileSync(configFile, "utf-8"));
-    }
-
-    config.ip = ip;
-    config.key = key;
-    writeFileSync(configFile, JSON.stringify(config, null, 2));
-  } catch (e) {
-    tvLog(`  Warning: Could not save TV config: ${e}`);
+  let config: Record<string, string> = {};
+  if (existsSync(configFile)) {
+    config = JSON.parse(readFileSync(configFile, "utf-8"));
   }
+
+  config.ip = ip;
+  config.key = key;
+  config.deviceUUID = deviceUUID;
+  writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
 // ============================================================================
@@ -171,9 +166,9 @@ function findBestLocalIP(): string | null {
 
 /**
  * Discover LG WebOS TVs on the local network via SSDP.
- * Returns the first TV found, or null if none discovered.
+ * Returns the TVs advertising on the selected interface.
  */
-async function discoverTV(): Promise<DiscoveredTV | null> {
+async function discoverTV(): Promise<DiscoveredTV[]> {
   tvLog("Starting SSDP discovery...");
 
   // Find best local IP for multicast binding
@@ -193,25 +188,23 @@ async function discoverTV(): Promise<DiscoveredTV | null> {
 
   if (!localIP) {
     tvLog("  ERROR: No suitable network interface found for SSDP");
-    return null;
+    return [];
   }
 
   return new Promise((resolve) => {
     const socket = createSocket({ type: "udp4", reuseAddr: true });
-    let found: DiscoveredTV | null = null;
+    const found = new Map<string, DiscoveredTV>();
 
     socket.on("error", (err) => {
       tvLog(`  SSDP socket error: ${err.message}`);
     });
 
     socket.on("message", (msg, rinfo) => {
-      if (found) return; // Already found one
-
       const tv = parseSsdpResponse(msg.toString(), rinfo);
-      if (tv) {
+      if (tv && !found.has(tv.ip)) {
         tvLog(`  Found LG WebOS TV: ${tv.ip}`);
         tvLog(`     Server: ${tv.server}`);
-        found = tv;
+        found.set(tv.ip, tv);
       }
     });
 
@@ -237,42 +230,13 @@ async function discoverTV(): Promise<DiscoveredTV | null> {
     // Wait for responses
     setTimeout(() => {
       socket.close();
-      if (found) {
-        tvLog(`  SSDP discovery complete: found ${found.ip}`);
+      if (found.size) {
+        tvLog(`  SSDP discovery complete: found ${found.size} TV(s)`);
       } else {
         tvLog("  SSDP discovery complete: no LG TVs found");
       }
-      resolve(found);
+      resolve([...found.values()]);
     }, SSDP_DISCOVERY_TIMEOUT_MS);
-  });
-}
-
-/**
- * Quick connectivity check to WebOS port 3001.
- */
-async function checkTvConnectivity(ip: string, timeoutMs: number = 2000): Promise<boolean> {
-  tvLog(`  Checking connectivity to ${ip}:3001...`);
-
-  return new Promise((resolve) => {
-    const socket = connect({ host: ip, port: 3001, timeout: timeoutMs });
-
-    socket.on("connect", () => {
-      tvLog(`  ${ip}:3001 is reachable`);
-      socket.destroy();
-      resolve(true);
-    });
-
-    socket.on("error", () => {
-      tvLog(`  ${ip}:3001 is not reachable`);
-      socket.destroy();
-      resolve(false);
-    });
-
-    socket.on("timeout", () => {
-      tvLog(`  ${ip}:3001 connection timeout`);
-      socket.destroy();
-      resolve(false);
-    });
   });
 }
 
@@ -371,120 +335,104 @@ function createHandshake(clientKey: string) {
 export async function switchTV(hdmiInput: string): Promise<boolean> {
   tvLog(`Setting input to ${hdmiInput}...`);
 
-  // Load TV config (may have cached IP)
-  let config = loadTvConfig();
-  let ip: string | null = config?.ip || null;
-  let clientKey = config?.clientKey || "";
-
+  const config = loadTvConfig();
+  const clientKey = config?.clientKey || "";
   tvLog(`  Config file: ${join(getConfigDir(), "tv-keys.json")}`);
-  tvLog(`  Cached IP: ${ip || "(none)"}`);
+  tvLog(`  Cached IP: ${config?.ip || "(none)"}`);
   tvLog(`  Client key: ${clientKey ? "loaded" : "none (will prompt for pairing)"}`);
 
-  // Step 1: Try cached IP if we have one
-  if (ip) {
-    const reachable = await checkTvConnectivity(ip);
-    if (!reachable) {
-      tvLog(`  Cached IP ${ip} is not reachable, will discover...`);
-      ip = null;
-    }
-  }
-
-  // Step 2: Discover TV if no cached IP or cached IP is stale
-  if (!ip) {
-    const discovered = await discoverTV();
-    if (discovered) {
-      ip = discovered.ip;
-      tvLog(`  Updating config with discovered IP: ${ip}`);
-      saveClientKey(ip, clientKey);
-    } else {
-      tvLog(`  ERROR: No LG WebOS TV found on network.`);
-      tvLog(`  Troubleshooting:`);
-      tvLog(`    - Make sure TV is powered ON (not just standby)`);
-      tvLog(`    - Enable 'LG Connect Apps' in TV settings`);
-      tvLog(`    - Verify TV and this computer are on the same network`);
+  let connection = config?.ip ? await connectTV(config.ip, config.deviceUUID) : null;
+  if (!connection && config?.discoverySubnet) {
+    if (!config.deviceUUID) {
+      tvLog("  ERROR: Routed discovery needs a saved TV identity. Set the current TV IP and connect once.");
       return false;
     }
+    tvLog(`  Searching ${config.discoverySubnet.cidr} for the saved TV over TCP...`);
+    connection = await discoverTVInSubnet(config.discoverySubnet, config.deviceUUID);
+  } else if (!connection) {
+    for (const discovered of await discoverTV()) {
+      connection = await connectTV(discovered.ip, config?.deviceUUID);
+      if (connection) break;
+    }
   }
 
-  // Step 3: Connect via WebSocket
-  tvLog(`  Connecting to wss://${ip}:3001...`);
+  if (!connection) {
+    tvLog("  ERROR: The configured LG WebOS TV could not be reached or identified.");
+    tvLog("    Check TV power and IP Control. Across a router, configure discoverySubnet and connect once at the current IP.");
+    return false;
+  }
 
-  return new Promise((resolve) => {
-    // Use secure WebSocket on port 3001 (LG WebOS default)
-    // tls: rejectUnauthorized=false because TV uses self-signed cert
-    const ws = new WebSocket(`wss://${ip}:3001`, {
-      tls: { rejectUnauthorized: false },
-    } as any);
+  const { ip, deviceUUID, socket: ws } = connection;
+  tvLog(`  Identified LG WebOS TV at ${ip}`);
+
+  return new Promise((resolve, reject) => {
     let registered = false;
-    let commandId = 1;
-
-    const timeout = setTimeout(() => {
-      tvLog("  TV connection timeout (10s)");
-      tvLog("  Hint: Make sure TV is on and 'IP Control' is enabled in settings");
+    const close = () => {
+      clearTimeout(timeout);
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
       ws.close();
-      resolve(false);
+    };
+    const finish = (success: boolean) => {
+      close();
+      resolve(success);
+    };
+    const timeout = setTimeout(() => {
+      tvLog("  TV command timeout (10s)");
+      finish(false);
     }, 10000);
 
-    ws.onopen = () => {
-      tvLog("  Connected, sending handshake...");
-      const handshake = createHandshake(clientKey);
-      ws.send(JSON.stringify(handshake));
-    };
-
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data as string);
-      tvLog(`  Received: ${msg.type}`);
+      let msg;
+      try {
+        msg = JSON.parse(event.data as string);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        tvLog("  TV returned invalid JSON");
+        finish(false);
+        return;
+      }
+      tvLog(`  Received: ${msg?.type}`);
 
-      if (msg.type === "registered") {
+      if (msg?.type === "registered" && !registered) {
         registered = true;
-
-        // Save the client key for future use
-        if (msg.payload && msg.payload["client-key"]) {
-          const newKey = msg.payload["client-key"];
-          if (newKey !== clientKey) {
-            tvLog("  Saving new client key...");
-            saveClientKey(ip!, newKey);
-          }
+        const key = msg.payload?.["client-key"] || clientKey;
+        try {
+          saveTvConfig(ip, key, deviceUUID);
+        } catch (error) {
+          close();
+          reject(error);
+          return;
         }
-
-        // Send set input command
         tvLog(`  Sending switchInput command: ${hdmiInput}`);
-        const cmd = {
+        ws.send(JSON.stringify({
           type: "request",
-          id: `cmd_${commandId++}`,
+          id: "switch_input",
           uri: "ssap://tv/switchInput",
           payload: { inputId: hdmiInput },
-        };
-        ws.send(JSON.stringify(cmd));
+        }));
       }
 
-      if (msg.type === "response" && registered) {
-        clearTimeout(timeout);
-        tvLog(`  TV switched to ${hdmiInput}`);
-        ws.close();
-        resolve(true);
+      if (msg?.type === "response" && msg.id === "switch_input" && registered) {
+        const success = msg.payload?.returnValue === true;
+        tvLog(success ? `  TV accepted input ${hdmiInput}` : `  TV rejected input ${hdmiInput}`);
+        finish(success);
       }
 
-      if (msg.type === "error") {
-        clearTimeout(timeout);
-        tvLog(`  TV error: ${msg.error || JSON.stringify(msg)}`);
-        ws.close();
-        resolve(false);
+      if (msg?.type === "error") {
+        tvLog(`  TV error: ${msg.error || "request failed"}`);
+        finish(false);
       }
     };
-
-    ws.onerror = (err: Event | ErrorEvent) => {
-      clearTimeout(timeout);
-      const message = (err as ErrorEvent).message || "connection failed";
-      tvLog(`  TV connection error: ${message}`);
-      if (message.includes("Connection ended")) {
-        tvLog("  Hint: TV may be off, or first-time pairing needed (check TV for prompt)");
-      }
-      resolve(false);
+    ws.onerror = (event: Event | ErrorEvent) => {
+      tvLog(`  TV connection failed: ${(event as ErrorEvent).message || "connection closed"}`);
+      finish(false);
     };
-
     ws.onclose = () => {
-      clearTimeout(timeout);
+      tvLog("  TV connection closed before confirming the input command");
+      finish(false);
     };
+    ws.send(JSON.stringify(createHandshake(clientKey)));
   });
 }

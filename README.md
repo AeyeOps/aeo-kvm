@@ -67,6 +67,9 @@ Result: press one button, everything switches together.
 > is saved to `tv-keys.json`, so later switches are silent. If the host can't
 > see the TV via SSDP (e.g. a Mac behind a travel-router NAT), seed the TV's IP
 > in `tv-keys.json` (`{"ip": "..."}`) — the cached IP is always tried first.
+> For recovery across a router after DHCP changes the TV's address, also set
+> `discoverySubnet` to the TV's IPv4 network in CIDR notation and connect once
+> at its current address. The saved TV identity is then used for TCP discovery.
 
 ### Supported Devices
 
@@ -215,13 +218,26 @@ aeo-kvm --verbose ...       # Show HID++ communication
 
 **TV Config** (`tv-keys.json`):
 - Linux: `~/.config/aeo-kvm/tv-keys.json`
+- macOS: `~/.config/aeo-kvm/tv-keys.json`
 - Windows: `%LOCALAPPDATA%\aeo-kvm\tv-keys.json`
 
 ```json
 {"ip": "192.168.1.100", "key": "your-client-key"}
 ```
 
-TV IP is auto-discovered via SSDP if cached IP is unreachable.
+The TV's WebOS `deviceUUID` is saved automatically after registration. A
+cached address must identify that same TV before the pairing key is sent.
+Without `discoverySubnet`, an unavailable cached address triggers SSDP discovery.
+
+When multicast cannot reach the TV (for example, behind a travel router), add
+`"discoverySubnet": "10.0.0.0/24"` using the **TV's network**, not the VM or
+travel-router subnet. Keep the existing `ip` and `key`. Connect once at the
+current TV address so its identity can be learned. On later address changes,
+aeo-kvm searches that subnet over TCP, matches the saved `deviceUUID`, and
+updates `ip` after successful registration. Discovery sends no pairing key or
+input commands to other devices. If no match is found, the saved config stays
+unchanged and the TV operation reports failure. Subnet recovery can take longer
+than a normal cached connection; subsequent switches use the recovered address.
 
 **Device Config** (edit `src/hid-ffi.ts` if needed):
 ```typescript
@@ -289,4 +305,20 @@ make build    # Builds every platform this host can + auto-deploy
 make dev ARGS="switch-to-linux --verbose"  # Test locally
 ```
 
-**Note:** No automated tests currently - manual testing with physical devices required.
+**Live TV regression tests:** run from a Linux/macOS host where no background
+KVM trigger is using its config, with an existing pairing key in `tv-keys.json`:
+
+```bash
+AEO_KVM_LIVE_TV=1 \
+AEO_KVM_TEST_TV_IP=10.0.0.239 \
+AEO_KVM_TEST_SUBNET=10.0.0.0/24 \
+AEO_KVM_TEST_STALE_IP=10.0.0.248 \
+bun test tests/tv-live.test.ts
+```
+
+Supply the TV's current address, its actual subnet, and a different stale
+address. The tests learn identity, recover the stale address, and reject a
+mismatched identity against the real TV. They temporarily edit the local TV
+config, restore its original bytes afterward, reselect the current HDMI input,
+and verify the TV's foreground input. They do not switch mouse or keyboard hosts.
+Without `AEO_KVM_LIVE_TV=1`, these hardware tests are skipped.

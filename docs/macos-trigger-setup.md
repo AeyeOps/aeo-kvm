@@ -19,7 +19,7 @@ including the return paths from Linux and Windows back to the Mac.
 | `.app` wrappers | `Switch to Windows.app` / `Switch to Linux.app` in `~/.local/share/aeo-kvm/` — the switch binary **is** the bundle executable (Input Monitoring must land on the exact process that opens the HID device) |
 | Mouse switch | HID++ `CHANGE_HOST` (0x1814) from the user-space `.app`, needs that app's Input Monitoring grant |
 | Keyboard switch | Root-owned helper `/usr/local/libexec/aeo-kvm/aeo-kvm-kbd` via passwordless `sudo -n` — macOS blocks non-root `hid_open` on keyboards (kIOReturnNotPrivileged) regardless of TCC grants |
-| TV input | LG WebOS WebSocket (`wss://TV:3001`) — cached IP from `tv-keys.json` first, SSDP discovery as fallback |
+| TV input | LG WebOS WebSocket (`wss://TV:3001`) — cached IP first, then configured TCP subnet discovery or SSDP |
 
 | Host    | Trigger software | Back button       | Forward button    |
 |---------|------------------|-------------------|-------------------|
@@ -72,16 +72,30 @@ is saved to `~/.config/aeo-kvm/tv-keys.json`.
 ## TV behind a router / NAT
 
 SSDP multicast does not cross a NAT. If the Mac sits behind a travel router on
-its own subnet, seed the TV's IP manually:
+its own subnet, set the TV's current IP and its home-network subnet:
 
 ```json
-{ "ip": "10.0.0.238" }
+{ "ip": "10.0.0.239", "discoverySubnet": "10.0.0.0/24" }
 ```
 
-in `~/.config/aeo-kvm/tv-keys.json`. The cached IP (with a TCP connectivity
-check to port 3001) is always tried **before** SSDP, so discovery is never
-needed when the seeded IP is reachable. If the TV's DHCP lease changes, update
-the file (or pin a DHCP reservation for the TV on the main router).
+in `~/.config/aeo-kvm/tv-keys.json`, preserving any existing `key`. Use the TV's
+actual subnet; it cannot be inferred from the Mac or VM's local network.
+
+For an existing config with the correct IP, add the subnet on the physical Mac:
+
+```bash
+plutil -replace discoverySubnet -string 10.0.0.0/24 ~/.config/aeo-kvm/tv-keys.json
+```
+
+Connect once with the updated application while the saved IP is correct.
+aeo-kvm reads the WebOS `deviceUUID` and saves it alongside the pairing key.
+If DHCP later changes the address, it searches the configured subnet over TCP
+and accepts only the same TV identity before registering and saving the new IP.
+No pairing prompts or switch commands are sent during discovery. A missing
+identity requires one successful connection at the current address first.
+
+With no `discoverySubnet`, SSDP remains the discovery method. A DHCP reservation
+for the TV on the main router is also an option.
 
 ## Input Monitoring gotchas (learned the hard way)
 
