@@ -22,11 +22,10 @@ for f in aeo-kvm switch-to-windows switch-to-linux libhidapi.dylib; do
     fi
 done
 
-# Install binary + per-target copies + dylib (no sudo: user-writable location).
-# -f removes a read-only destination first (the brew dylib installs mode 444).
 mkdir -p "$INSTALL_DIR"
 for f in aeo-kvm switch-to-windows switch-to-linux libhidapi.dylib; do
-    cp -f "$SCRIPT_DIR/$f" "$INSTALL_DIR/$f"
+    cp -f "$SCRIPT_DIR/$f" "$INSTALL_DIR/$f.new"
+    mv -f "$INSTALL_DIR/$f.new" "$INSTALL_DIR/$f"
 done
 chmod +x "$INSTALL_DIR/aeo-kvm" "$INSTALL_DIR/switch-to-windows" "$INSTALL_DIR/switch-to-linux"
 echo "[Install] Binary + switch-to-* + dylib -> $INSTALL_DIR/"

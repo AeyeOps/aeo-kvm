@@ -13,6 +13,8 @@
 # System Settings -> Privacy & Security -> Input Monitoring.
 set -e
 
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' "$PROJECT_DIR/pyproject.toml")
 INSTALL_DIR="$HOME/.local/share/aeo-kvm"
 
 make_app() {
@@ -40,7 +42,7 @@ make_app() {
     <key>CFBundleIdentifier</key><string>com.aeo.kvm.$target</string>
     <key>CFBundleName</key><string>$pretty</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>LSUIElement</key><true/>
 </dict>
