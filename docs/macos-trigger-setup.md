@@ -35,11 +35,25 @@ make macos      # = scripts/macos-lifecycle.sh
 
 Installs prerequisites (`bun`, `hidapi` via Homebrew), builds the
 `bun-darwin-arm64` binary, copies `aeo-kvm` + `switch-to-*` +
-`libhidapi.dylib` to `~/.local/share/aeo-kvm/` (**no sudo**), and (re)builds
-the two `.app` wrappers when they are stale. Idempotent — safe to re-run after
-a code change.
+`libhidapi.dylib` to `~/.local/share/aeo-kvm/` (**no sudo**), and builds
+the two `.app` wrappers. A release package's `bash install.sh` uses the same
+app and permission setup without requiring a build toolchain.
 
-Then three one-time steps:
+On both a fresh install and an upgrade, the installer:
+
+1. Replaces and signs **Switch to Windows** and **Switch to Linux** at their
+   existing paths, preserving Options+ button bindings.
+2. Resets Input Monitoring for only `com.aeo.kvm.switch-to-windows` and
+   `com.aeo.kvm.switch-to-linux`.
+3. Launches each app with `request-input-monitoring`, which calls Apple's
+   `IOHIDRequestAccess` without loading the HID or TV switching modules.
+4. Opens System Settings → Privacy & Security → Input Monitoring.
+
+**Enable both Switch apps in that pane.** macOS requires your approval after
+each installation; the installer handles removing the stale grants and
+requesting new entries. TV pairing and configuration are preserved.
+
+Then two additional steps for a new installation:
 
 1. **Keyboard root helper** (admin password once):
 
@@ -60,11 +74,6 @@ Then three one-time steps:
    Writes the Back → Switch to Windows / Forward → Switch to Linux
    assignments directly into Logi Options+' `settings.db` (backed up first),
    then restarts the Options+ agent and verifies it came back up.
-
-3. **Input Monitoring**: System Settings → Privacy & Security → Input
-   Monitoring → add **both** apps:
-   - `~/.local/share/aeo-kvm/Switch to Windows.app`
-   - `~/.local/share/aeo-kvm/Switch to Linux.app`
 
 **First switch:** accept the pairing prompt on the LG TV once; the client key
 is saved to `~/.config/aeo-kvm/tv-keys.json`.
@@ -102,14 +111,19 @@ for the TV on the main router is also an option.
 - The TCC grant is pinned to the app's **code signature**. The wrappers are
   ad-hoc signed, so every rebuild of the `.app`s invalidates existing grants —
   and the Settings toggle still shows "on". **Toggling it off/on does not
-  fix this.** Remove the entry (−) and re-add the app, or reset it cleanly:
+  fix this.** The installer now resets both grants and requests fresh entries
+  automatically. To request permission again without rebuilding the apps or
+  switching devices:
 
   ```bash
   tccutil reset ListenEvent com.aeo.kvm.switch-to-windows
   tccutil reset ListenEvent com.aeo.kvm.switch-to-linux
+  open -n -W "$HOME/.local/share/aeo-kvm/Switch to Windows.app" --args request-input-monitoring
+  open -n -W "$HOME/.local/share/aeo-kvm/Switch to Linux.app" --args request-input-monitoring
+  open "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
   ```
 
-  then press the button and approve the fresh prompt.
+  Then enable both Switch apps in Input Monitoring.
 - The grant gates **everything** launched by the app — including the root
   keyboard helper (TCC attributes responsibility to the launching app, even
   across `sudo`). A missing grant looks like every `hid_open` returning

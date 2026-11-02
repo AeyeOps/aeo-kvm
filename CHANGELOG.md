@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-11-01
+
+### Fixed
+- macOS installation and upgrades now build both Switch apps, reset only their
+  stale Input Monitoring grants, and request new entries before opening the
+  settings pane. Users still enable both switches, but no longer need to
+  remove and manually re-add the apps after replacement.
+- Packaged installation and `make macos` share that setup flow. Existing TV
+  configuration, pairing, and Options+ button paths are preserved.
+- App signing and LaunchServices registration failures stop setup visibly
+  instead of continuing with unusable permission identities.
+
+### Added
+- macOS `request-input-monitoring` mode calls `IOHIDRequestAccess` directly
+  without loading HID or TV switching code.
+
 ## [0.3.2] - 2026-11-01
 
 ### Fixed

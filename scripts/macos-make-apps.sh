@@ -1,25 +1,15 @@
 #!/bin/bash
-# Build self-contained .app wrappers for the switch-to-* executables so Logi
-# Options+ Smart Actions ("Open application" needs a .app) can launch them.
-#
-# CRITICAL: the switch binary IS the app's CFBundleExecutable (not a child of a
-# launcher script). macOS Input Monitoring (TCC) does NOT extend to child
-# processes - the exact process that opens the K950 keyboard HID must itself be
-# the granted app. So we embed the binary + dylib directly in Contents/MacOS.
-# The binary picks its target from its own filename (switch-to-windows -> Windows)
-# and finds libhidapi.dylib next to itself.
-#
-# After (re)building, grant Input Monitoring to BOTH .apps in
-# System Settings -> Privacy & Security -> Input Monitoring.
-set -e
+set -euo pipefail
+
+[ "$(uname -s)" = "Darwin" ] || { echo "[ERROR] macOS only"; exit 1; }
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' "$PROJECT_DIR/pyproject.toml")
 INSTALL_DIR="$HOME/.local/share/aeo-kvm"
 
 make_app() {
-    local target="$1"          # switch-to-windows | switch-to-linux
-    local pretty="$2"          # "Switch to Windows"
+    local target="$1"
+    local pretty="$2"
     local app="$INSTALL_DIR/$pretty.app"
     local macos="$app/Contents/MacOS"
 
@@ -27,8 +17,6 @@ make_app() {
 
     rm -rf "$app"
     mkdir -p "$macos"
-    # The binary itself is the app executable; dylib sits beside it (findLibPath
-    # checks dirname(execPath) first).
     cp "$INSTALL_DIR/$target" "$macos/$target"
     cp "$INSTALL_DIR/libhidapi.dylib" "$macos/libhidapi.dylib"
     chmod +x "$macos/$target"
@@ -49,7 +37,7 @@ make_app() {
 </plist>
 PLIST
 
-    codesign --force --deep -s - "$app" >/dev/null 2>&1 || true
+    codesign --force --deep -s - "$app"
     echo "[app] $app  (executable=$target)"
 }
 
@@ -57,10 +45,17 @@ make_app switch-to-windows "Switch to Windows"
 make_app switch-to-linux   "Switch to Linux"
 
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-    -f "$INSTALL_DIR/Switch to Windows.app" "$INSTALL_DIR/Switch to Linux.app" 2>/dev/null || true
+    -f "$INSTALL_DIR/Switch to Windows.app" "$INSTALL_DIR/Switch to Linux.app"
 
 echo ""
-echo "Next: grant Input Monitoring to BOTH .apps:"
-echo "  System Settings -> Privacy & Security -> Input Monitoring -> +"
-echo "    $INSTALL_DIR/Switch to Windows.app"
-echo "    $INSTALL_DIR/Switch to Linux.app"
+echo "[Permissions] Refreshing Input Monitoring for the two Switch apps."
+/usr/bin/tccutil reset ListenEvent com.aeo.kvm.switch-to-windows
+/usr/bin/tccutil reset ListenEvent com.aeo.kvm.switch-to-linux
+/usr/bin/open -n -W "$INSTALL_DIR/Switch to Windows.app" --args request-input-monitoring
+/usr/bin/open -n -W "$INSTALL_DIR/Switch to Linux.app" --args request-input-monitoring
+/usr/bin/open "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+
+echo ""
+echo "[ACTION REQUIRED] Enable Switch to Windows and Switch to Linux in Input Monitoring."
+echo "  macOS requires you to approve both switches yourself."
+echo "  Permission setup does not switch the keyboard, mouse, or TV."

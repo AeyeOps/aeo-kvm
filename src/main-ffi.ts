@@ -21,6 +21,16 @@ import {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  const explicitCommand = args.find((a) => !a.startsWith("-"));
+
+  if (explicitCommand === "request-input-monitoring") {
+    if (process.platform !== "darwin") {
+      throw new Error("Input Monitoring setup is macOS-only.");
+    }
+    const { requestInputMonitoring } = await import("./macos-permissions");
+    requestInputMonitoring();
+    return;
+  }
 
   // Windows: Handle install/uninstall BEFORE loading HID modules
   if (process.platform === "win32") {
@@ -58,7 +68,7 @@ async function main(): Promise<void> {
   };
   const defaultCommand =
     byFilename[exeName] ?? (process.platform === "win32" ? "switch-to-linux" : "switch-to-windows");
-  const command = args.find((a) => !a.startsWith("-")) || defaultCommand;
+  const command = explicitCommand || defaultCommand;
 
   const TV_INPUT: Record<string, string> = {
     linux: "HDMI_2",
