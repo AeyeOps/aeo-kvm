@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.3] - Unreleased
+## [0.4.0] - 2026-11-01
 
 ### Fixed
 - macOS installation and upgrades now build both Switch apps, reset only their
