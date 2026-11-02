@@ -1,7 +1,7 @@
 # aeo-kvm
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.2-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.3-green.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#requirements)
 
 Software KVM switch for Logitech multi-host devices and LG WebOS TVs.
@@ -187,10 +187,17 @@ make macos
 
 It installs `bun` and `hidapi` (Homebrew), builds the native binary, installs to
 `~/.local/share/aeo-kvm/` (**no sudo**), and builds the `Switch to Windows.app` /
-`Switch to Linux.app` wrappers that Logi Options+ launches. Idempotent — safe to
-re-run after a code change.
+`Switch to Linux.app` wrappers that Logi Options+ launches. The packaged
+`bash install.sh` uses the same app and permission setup.
 
-Then three one-time steps:
+Every installation or upgrade replaces and signs both apps, clears only their
+old Input Monitoring grants, and launches each in permission-request mode.
+System Settings opens to Input Monitoring: enable **Switch to Windows** and
+**Switch to Linux**. No manual removal, file browsing, or re-adding is needed.
+This setup requests permission without switching the keyboard, mouse, or TV.
+Existing TV configuration and Options+ bindings are preserved.
+
+Two additional steps for a new installation:
 
 1. **Keyboard root helper** (admin password once):
    `bash scripts/macos-install-kbd-helper.sh` — the K950 keyboard can only be
@@ -200,10 +207,6 @@ Then three one-time steps:
 2. **Bind the buttons**: `python3 scripts/macos-optionsplus-bind.py` writes
    M750 Back → Switch to Windows / Forward → Switch to Linux directly into
    Logi Options+' settings (backed up first) and restarts its agent.
-3. **Input Monitoring**: System Settings → Privacy & Security → Input
-   Monitoring → add **both** `~/.local/share/aeo-kvm/Switch to *.app`. Re-add
-   them after any wrapper rebuild — the grant is pinned to the code signature,
-   and the toggle alone won't refresh a stale entry.
 
 First button press: accept the pairing prompt on the LG TV. If the Mac can't
 reach the TV via SSDP (router/NAT between them), seed the TV IP in
